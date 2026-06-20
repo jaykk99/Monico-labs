@@ -1,20 +1,14 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Vortex Cloud Platform
 
-# Run and deploy your AI Studio app
+Vortex is a powerful, integrated infrastructure and cloud database engine designed for seamless deployment and management of your applications.
 
-This contains everything you need to run your app locally.
+## Getting Online (Cloud Agent Deployment)
 
-View your app in AI Studio: https://ai.studio/apps/8ee70120-b447-4cdd-9e8c-1fcca6f6eff4
+To deploy your application from a cloud agent to your own custom domain, vortex handles the DNS routing and agent allocation automatically:
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **Access Settings:** Navigate to your project's dashboard in the Vortex console.
+2. **Configure Domain:** Select the "Domains" tab within the project settings.
+3. **Allocate Agent Subdomain:** Click the "Allocate Agent Subdomain" button.
+4. **Set Domain Record:** Enter your desired custom domain. The system will provide a CNAME record value.
+5. **Update DNS:** Configure your DNS provider with this CNAME record, pointing to the agent's provided endpoint.
+6. **Activate:** Once DNS propagation is complete, the cloud agent will finalize the SSL handshake and bring your application live in the cloud.
