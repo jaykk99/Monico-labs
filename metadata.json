@@ -1,0 +1,6 @@
+{
+  "name": "Vortex Cloud",
+  "description": "An intuitive, high-fidelity cloud deployment and hosting platform mockup. Connect Git, trigger rich simulated builds, run serverless functions, monitor real-time Web Vitals, and configure edge routes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

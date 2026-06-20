@@ -1,0 +1,375 @@
+{
+  "shieldConfigs": {
+    "proj-1": {
+      "sslMode": "strict",
+      "developmentMode": false,
+      "brotli": true,
+      "securityLevel": "high",
+      "totalThreatsBlocked": 4,
+      "wafRules": [
+        {
+          "id": "rule-1",
+          "field": "uri",
+          "operator": "contains",
+          "value": "/admin",
+          "action": "block",
+          "isEnabled": true
+        }
+      ]
+    }
+  },
+  "baseIncidents": [
+    {
+      "id": "inc-1",
+      "timestamp": "2026-06-20T14:22:45.389Z",
+      "ip": "185.220.101.5",
+      "country": "Sweden",
+      "flag": "🇸🇪",
+      "threatType": "Cross-Site Scripting (XSS)",
+      "action": "blocked",
+      "query": "GET /api/comments?author_id=<script>alert(1)</script>"
+    },
+    {
+      "id": "inc-2",
+      "timestamp": "2026-06-20T14:17:45.389Z",
+      "ip": "45.143.203.111",
+      "country": "Germany",
+      "flag": "🇩🇪",
+      "threatType": "SQL Injection Suspected",
+      "action": "blocked",
+      "query": "POST /auth/login?uname=' OR '1'='1"
+    }
+  ],
+  "databaseTables": {
+    "proj-1": [
+      {
+        "id": "tbl-1",
+        "name": "users_profiles",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "isNullable": false,
+            "isPrimaryKey": true
+          },
+          {
+            "name": "display_name",
+            "type": "text",
+            "isNullable": true,
+            "isPrimaryKey": false
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "isNullable": false,
+            "isPrimaryKey": false
+          },
+          {
+            "name": "is_active",
+            "type": "boolean",
+            "isNullable": false,
+            "isPrimaryKey": false,
+            "defaultValue": "true"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "isNullable": false,
+            "isPrimaryKey": false,
+            "defaultValue": "now()"
+          }
+        ],
+        "rows": [
+          {
+            "id": "e17a3a9b-8a8e-49b8-8e6d-927bac3398be",
+            "display_name": "Alice Vance",
+            "email": "alice@vortex.ml",
+            "is_active": true,
+            "created_at": "2026-06-18 12:44:02"
+          },
+          {
+            "id": "10b86a81-d13c-42b7-84bc-cfc998a129ef",
+            "display_name": "Bruce Sterling",
+            "email": "bruce@neon.com",
+            "is_active": false,
+            "created_at": "2026-06-19 09:30:15"
+          }
+        ]
+      },
+      {
+        "id": "tbl-2",
+        "name": "orders_v2",
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "uuid",
+            "isNullable": false,
+            "isPrimaryKey": true
+          },
+          {
+            "name": "user_id",
+            "type": "uuid",
+            "isNullable": false,
+            "isPrimaryKey": false
+          },
+          {
+            "name": "amount_cents",
+            "type": "integer",
+            "isNullable": false,
+            "isPrimaryKey": false
+          },
+          {
+            "name": "shipped",
+            "type": "boolean",
+            "isNullable": false,
+            "isPrimaryKey": false,
+            "defaultValue": "false"
+          }
+        ],
+        "rows": [
+          {
+            "order_id": "77cd9e2e-2f5a-4e6f-be61-0dfdfab926ee",
+            "user_id": "e17a3a9b-8a8e-49b8-8e6d-927bac3398be",
+            "amount_cents": 14500,
+            "shipped": true
+          }
+        ]
+      }
+    ]
+  },
+  "authConfigs": {
+    "proj-1": {
+      "jwtLifespan": 3600,
+      "allowSignup": true,
+      "passwordMinLength": 8,
+      "providers": {
+        "emailPassword": true,
+        "magicLink": true,
+        "otp": false
+      },
+      "redirectUrls": [
+        "https://active-gate.vortex.ml/callback",
+        "http://localhost:3000/callback"
+      ]
+    }
+  },
+  "authUsers": {
+    "proj-1": [
+      {
+        "id": "usr-jay",
+        "email": "jayomer1234@gmail.com",
+        "createdAt": "2026-06-20T07:56:00Z",
+        "lastLogin": "2026-06-20T07:56:53Z",
+        "status": "active"
+      },
+      {
+        "id": "usr-1",
+        "email": "alice@vortex.ml",
+        "createdAt": "2026-06-18T12:44:00Z",
+        "lastLogin": "2026-06-20T01:30:12Z",
+        "status": "active"
+      },
+      {
+        "id": "usr-2",
+        "email": "bruce@neon.com",
+        "createdAt": "2026-06-19T09:30:00Z",
+        "lastLogin": "2026-06-20T02:00:44Z",
+        "status": "suspended"
+      }
+    ]
+  },
+  "apiKeys": {
+    "proj-1": [
+      {
+        "id": "key-1",
+        "name": "Production Gateway Backend",
+        "secret": "vtx_live_79a2fbc89e73ad1a09df2b1ff",
+        "createdAt": "2026-06-19T10:00:00Z",
+        "rateLimit": 120,
+        "description": "Main API key for secure communication with Monaco client SDKs & CLI."
+      }
+    ]
+  },
+  "workspaces": [
+    {
+      "id": "ws-1",
+      "name": "Monaco Labs Main",
+      "owner": "jayomer1234@gmail.com",
+      "members": [
+        {
+          "email": "jayomer1234@gmail.com",
+          "role": "Owner"
+        },
+        {
+          "email": "collaborator@monaco.io",
+          "role": "Admin"
+        }
+      ]
+    },
+    {
+      "id": "ws-2",
+      "name": "Acme Enterprises",
+      "owner": "jayomer1234@gmail.com",
+      "members": [
+        {
+          "email": "jayomer1234@gmail.com",
+          "role": "Owner"
+        }
+      ]
+    }
+  ],
+  "composioConnectors": {
+    "proj-1": [
+      {
+        "id": "conn-slack",
+        "name": "Slack",
+        "category": "Messengers",
+        "description": "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.",
+        "logo": "slack",
+        "isConnected": true,
+        "scopesCount": 12
+      },
+      {
+        "id": "conn-github",
+        "name": "GitHub",
+        "category": "Dev Tools",
+        "description": "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.",
+        "logo": "github",
+        "isConnected": true,
+        "scopesCount": 8
+      },
+      {
+        "id": "conn-discord",
+        "name": "Discord",
+        "category": "Messengers",
+        "description": "Stream alert logs and high severity attack warning alerts into server channels.",
+        "logo": "discord",
+        "isConnected": false,
+        "scopesCount": 4
+      },
+      {
+        "id": "conn-notion",
+        "name": "Notion",
+        "category": "Productivity",
+        "description": "Direct export of analytical summaries and performance logs into your tables.",
+        "logo": "notion",
+        "isConnected": false,
+        "scopesCount": 0
+      },
+      {
+        "id": "conn-hubspot",
+        "name": "HubSpot",
+        "category": "CRM",
+        "description": "Feed active edge registration pings straight into marketing contacts.",
+        "logo": "hubspot",
+        "isConnected": false,
+        "scopesCount": 6
+      },
+      {
+        "id": "conn-stripe",
+        "name": "Stripe",
+        "category": "CRM",
+        "description": "Automated ledger webhook triggers connected straight to database instances.",
+        "logo": "stripe",
+        "isConnected": false,
+        "scopesCount": 15
+      },
+      {
+        "id": "conn-gmail",
+        "name": "Gmail",
+        "category": "Productivity",
+        "description": "Send administration emails, verifications, OTP codes, and critical error dispatches.",
+        "logo": "gmail",
+        "isConnected": false,
+        "scopesCount": 10
+      },
+      {
+        "id": "conn-salesforce",
+        "name": "Salesforce",
+        "category": "CRM",
+        "description": "Synchronize client subscriptions, accounts, and server operations metrics.",
+        "logo": "salesforce",
+        "isConnected": false,
+        "scopesCount": 0
+      }
+    ]
+  },
+  "projects": [
+    {
+      "id": "proj-1",
+      "name": "active-gate",
+      "framework": "react",
+      "repo": "user/active-gate",
+      "branch": "main",
+      "createdAt": "2026-06-18T14:25:45.389Z",
+      "activeDeploymentId": "dep-1"
+    }
+  ],
+  "envVars": {
+    "proj-1": [
+      {
+        "id": "env-1-1",
+        "key": "VITE_APP_ENV",
+        "value": "production"
+      },
+      {
+        "id": "env-1-2",
+        "key": "CACHE_TTL",
+        "value": "3600"
+      }
+    ]
+  },
+  "domains": {
+    "proj-1": [
+      "active-gate.vortex.ml"
+    ]
+  },
+  "deployments": [
+    {
+      "id": "dep-1",
+      "projectId": "proj-1",
+      "status": "ready",
+      "previewUrl": "https://active-gate-dep-1.vortex.ml",
+      "createdAt": "2026-06-18T14:25:45.389Z",
+      "commitMessage": "initial deployment: active security gate & web vitals baseline monitor",
+      "commitHash": "e4f8d2a",
+      "buildLogs": [
+        "[vortex] Initializing build workspace to deploy user/active-gate...",
+        "[vortex] Loaded 12 dependencies from local lockfile",
+        "[vortex] Running compiler script: \"vite build\"",
+        "[vite] Compiling TypeScript dynamic types...",
+        "[vite] Bundling assets with Rollup...",
+        "[vite] ✓ compiled in 0.8s",
+        "[vortex] DNS check successful: active-gate.vortex.ml validates correctly",
+        "[vortex] Deployment successful! 🎉"
+      ],
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">Æ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Active Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> • Node: US-East-1\n          </div>\n        </div>\n      </div>\n    "
+    }
+  ],
+  "serverlessFunctions": [
+    {
+      "id": "func-1",
+      "projectId": "proj-1",
+      "name": "hello.ts",
+      "route": "/api/hello",
+      "code": "export default async function handler(req: Request) {\n  return Response.json({\n    status: \"healthy\",\n    message: \"Active-gate serverless endpoint running successfully.\",\n    timestamp: new Date().toISOString()\n  });\n}",
+      "description": "Sub-10ms serverless edge endpoint returning status handshake payloads."
+    }
+  ],
+  "executionLogs": [
+    {
+      "id": "exec-1",
+      "functionId": "func-1",
+      "timestamp": "2026-06-20T14:25:45.389Z",
+      "status": 200,
+      "durationMs": 4,
+      "memoryMb": 12.4,
+      "stdout": [
+        "INFO: initializing runtime microservice isolate",
+        "TRACE: evaluating hello.ts execution handler",
+        "SUCCESS: response processed in 4ms"
+      ],
+      "responseBody": "{\n  \"status\": \"healthy\",\n  \"message\": \"Active-gate serverless endpoint running successfully.\",\n  \"timestamp\": \"2026-06-20T14:25:45.389Z\"\n}"
+    }
+  ]
+}
