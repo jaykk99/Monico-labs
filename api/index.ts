@@ -1,5 +1,4 @@
-import { app } from "../server";
-
-// Export the Express app as the Vercel serverless function handler.
-// Vercel automatically routes /api/* to this file.
-export default app;
+// api/index.ts — Vercel serverless entry point
+// server.ts already checks process.env.VERCEL and does not call app.listen() on Vercel.
+// We just re-export the configured Express app as the default handler.
+export { app as default } from '../server';
