@@ -881,40 +881,57 @@ export default function App() {
       .catch(err => console.error("Connector toggle error:", err));
   };
 
-  const runAgentMcp = () => {
+  const runAgentMcp = async () => {
     setIsTestingMcp(true);
     setMcpTestRunStatus("running");
     setMcpTestLogs([]);
 
-    const agentLabel = mcpAgentPlatform === "VortexAutonomousOS" ? "Vortex Autonomous OS v4" : mcpAgentPlatform === "VortexCoreLLM" ? "Vortex Core LLM Gateway" : "Vortex Anycast Routing Engine";
-    
-    const logs = [
-      `[07:14:02] [MCP-TUNNEL] Handshake request dispatched to: ${mcpEndpoint}`,
-      `[07:14:02] [MCP-HEADERS] Appending access headers... x-consumer-api-key: ${mcpApiKey.substring(0, 10)}... [VALID]`,
-      `[07:14:03] [MCP-HANDSHAKE] Handshake completed successfully. Bound with session ID mcp_sess_${Math.random().toString(36).substring(4, 10)}`,
-      `[07:14:03] [MCP-SCHEMAS] Querying registered Composio tools list...`,
-      `[07:14:04] [MCP-SCHEMAS] Discovered 18 capabilities (Slack:send_blocks, GitHub:issue_pr_sync, DbTool:run_exec)`,
-      `[07:14:04] [AGENT-SYSTEM] Spawning agent controller [${agentLabel}]...`,
-      `[07:14:04] [AGENT-MODEL] Planning execution parameters for task goals: "${mcpAgentPrompt}"`,
-      `[07:14:05] [AGENT-ROUTE] LLM reasoning selected tool 'Slack:send_blocks' and 'DbTool:run_exec'`,
-      `[07:14:05] [MCP-INVOKE] Dispatching 'DbTool:run_exec' through https://connect.composio.dev/mcp`,
-      `[07:14:06] [MCP-EXEC-SUCCESS] DbTool:run_exec returned payload: { altered_rows: 24, table_target: "vortex_analytics_metrics" }`,
-      `[07:14:06] [MCP-INVOKE] Dispatching 'Slack:send_blocks' with message: "WAF logs scanned. 24 threat tables mapped under ${selectedDefaultModel} default routing."`,
-      `[07:14:07] [MCP-EXEC-SUCCESS] Slack:send_blocks completed 200 OK. Destination channel #engineering pings verified.`,
-      `[07:14:07] [AGENT-SUCCESS] Autonomous run finished safely. All agent goals achieved in ${(2.4 + Math.random() * 1.5).toFixed(2)}s.`
-    ];
+    try {
+      const response = await fetch("/api/composio/mcp/run-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: mcpApiKey,
+          prompt: mcpAgentPrompt,
+          platform: mcpAgentPlatform
+        })
+      });
 
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < logs.length) {
-        setMcpTestLogs(prev => [...prev, logs[i]]);
-        i++;
-      } else {
-        clearInterval(interval);
-        setIsTestingMcp(false);
-        setMcpTestRunStatus("success");
-      }
-    }, 350);
+      const data = await response.json();
+      const logs: string[] = data.logs || [`[ERROR] Failed to connect — HTTP ${response.status}`];
+
+      // Drip logs for live terminal effect
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < logs.length) {
+          setMcpTestLogs(prev => [...prev, logs[i]]);
+          i++;
+        } else {
+          clearInterval(interval);
+          setIsTestingMcp(false);
+          setMcpTestRunStatus(data.status === "success" ? "success" : "failed");
+
+          // Populate connectors list with real discovered tools
+          if (data.tools && data.tools.length > 0) {
+            const realConnectors = data.tools.slice(0, 12).map((tool: any) => ({
+              id: `mcp-${tool.name}`,
+              name: tool.name,
+              description: tool.description || "Composio MCP Tool",
+              isConnected: true,
+              scopesCount: Object.keys(tool.inputSchema?.properties || {}).length,
+              webhookUrl: `${mcpEndpoint}/tools/call`,
+              lastSync: new Date().toISOString()
+            }));
+            setComposioConnectorsList(realConnectors);
+          }
+        }
+      }, 150);
+
+    } catch (err: any) {
+      setMcpTestLogs([`[CRITICAL] Network error: ${err.message}`]);
+      setIsTestingMcp(false);
+      setMcpTestRunStatus("failed");
+    }
   };
 
   // --- ADVANCED API KEY GENERATOR HANDLER ---
