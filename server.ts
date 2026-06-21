@@ -1946,4 +1946,11 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start the local dev server when not in Vercel serverless environment
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+// Export the Express app for use as a Vercel serverless function handler
+export { app };
+
