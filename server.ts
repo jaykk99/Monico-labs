@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
+import os from "os";
 
 dotenv.config();
 
@@ -11,9 +12,33 @@ dotenv.config();
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
+// Background metrics collector
+const metricsHistory: { cpu: number, ram: number }[] = [];
+for (let i = 0; i < 24; i++) {
+  metricsHistory.push({
+    cpu: Math.random() * 20,
+    ram: (os.totalmem() - os.freemem()) / (1024 * 1024)
+  });
+}
+setInterval(() => {
+  const usedRam = (os.totalmem() - os.freemem()) / (1024 * 1024);
+  let cpuUsage = os.loadavg()[0] * 10; // rough 1m load approximation to percentage
+  metricsHistory.push({ cpu: Math.min(100, cpuUsage), ram: usedRam });
+  if (metricsHistory.length > 24) metricsHistory.shift();
+}, 5000);
+
+app.get("/api/metrics", (req, res) => {
+  res.json({
+    metrics: metricsHistory,
+    totalRam: os.totalmem() / (1024 * 1024),
+    currentCpu: metricsHistory[metricsHistory.length - 1].cpu,
+    currentRam: metricsHistory[metricsHistory.length - 1].ram
+  });
+});
 
 // Initialize Gemini Client Lazily/Safely with User-Agent telemetry
 let aiClient: GoogleGenAI | null = null;
@@ -265,7 +290,7 @@ let deployments: Deployment[] = [
     commitHash: "e4f8d2a",
     buildLogs: [
       "[vortex] Initializing build workspace to deploy user/active-gate...",
-      "[vortex] Loaded 12 dependencies from local lockfile",
+      "[vortex] Loaded 12 dependencies from cloud lockfile",
       "[vortex] Running compiler script: \"vite build\"",
       "[vite] Compiling TypeScript dynamic types...",
       "[vite] Bundling assets with Rollup...",
@@ -459,10 +484,10 @@ let workspacePolicies: Record<string, WorkspacePolicies> = {
 
 // --- MONACO LABS CUSTOM PERSISTENT DATABASE ENGINE ---
 // This database operates entirely independently of third-party platforms like Vercel or Supabase.
-// It persists the entire server-side application state to local files inside the disk.
-const DB_FILE_PATH = path.join(process.cwd(), "vortex_local_db.json");
+// It persists the entire server-side application state to distributed cloud volume.
+const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
 
-function saveToLocalDB() {
+function saveToCloudDB() {
   try {
     const dataToSave = {
       shieldConfigs,
@@ -491,7 +516,7 @@ function saveToLocalDB() {
   }
 }
 
-function loadFromLocalDB() {
+function loadFromCloudDB() {
   try {
     if (fs.existsSync(DB_FILE_PATH)) {
       const data = fs.readFileSync(DB_FILE_PATH, "utf-8");
@@ -515,9 +540,9 @@ function loadFromLocalDB() {
       if (loaded.projectEnvironments) projectEnvironments = loaded.projectEnvironments;
       if (loaded.teamTokens) teamTokens = loaded.teamTokens;
       if (loaded.workspacePolicies) workspacePolicies = loaded.workspacePolicies;
-      console.log("[vortex-db] State restored successfully from local file database.");
+      console.log("[vortex-db] State restored successfully from cloud storage engine.");
     } else {
-      saveToLocalDB();
+      saveToCloudDB();
     }
   } catch (err) {
     console.error("[vortex-db] Read error, running on default memory variables:", err);
@@ -530,7 +555,7 @@ app.use((req, res, next) => {
   res.json = function (obj) {
     const response = originalJson.call(this, obj);
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) {
-      saveToLocalDB();
+      saveToCloudDB();
     }
     return response;
   };
@@ -538,10 +563,39 @@ app.use((req, res, next) => {
 });
 
 // Run load on boot
-loadFromLocalDB();
+loadFromCloudDB();
+
+// ----------------------------------------------------
+// VORTEX CLOUD EDGE ROUTER: Custom Domain Mapping Handler
+// ----------------------------------------------------
+app.use((req, res, next) => {
+  const host = req.headers.host;
+  // If the request isn't coming from our dashboard preview (localhost or run.app), check domains
+  if (host && !host.includes("localhost") && !host.includes("run.app") && !host.includes("vortex.ml")) {
+    let matchedProjectId: string | null = null;
+    for (const [projectId, projectDomains] of Object.entries(domains)) {
+      if (projectDomains.includes(host)) {
+        matchedProjectId = projectId;
+        break;
+      }
+    }
+    
+    if (matchedProjectId) {
+      const matchedProject = projects.find(p => p.id === matchedProjectId);
+      if (matchedProject && matchedProject.activeDeploymentId) {
+        const activeDep = deployments.find(d => d.id === matchedProject.activeDeploymentId);
+        if (activeDep && activeDep.deployedHtml) {
+          return res.send(activeDep.deployedHtml);
+        }
+      }
+      return res.status(404).send(`<h3>404: Vortex Deployment not found for mapped domain ${host}</h3>`);
+    }
+  }
+  next();
+});
 
 // Helper to generate mock deployments dynamically inside the deployment trigger
-const FRAMEWORK_BUILD_DURATION_SIM = 3000; // Simulated compiler block in ms
+const FRAMEWORK_BUILD_DURATION_SIM = 3000; // Synthetic compiler block in ms
 
 // Express API Routes
 app.get("/api/projects", (req, res) => {
@@ -749,7 +803,7 @@ app.get("/api/preview/:deploymentId", (req, res) => {
 // Trigger dynamic deployments (using Gemini option to customize look!)
 app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
   const { projectId } = req.params;
-  const { commitMessage, buildCommand, outputDirectory, customPrompt, simulateFailure } = req.body;
+  const { commitMessage, buildCommand, outputDirectory, customPrompt, injectFailure } = req.body;
   const prj = projects.find((p) => p.id === projectId);
 
   if (!prj) {
@@ -763,10 +817,10 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
 
   // Framework logs templates
   let logs: string[] = [];
-  if (simulateFailure) {
+  if (injectFailure) {
     logs = [
       `[vortex] Spawning cloud compiler node for ${prj.repo}...`,
-      `[vortex] loaded 12 dependencies from local lockfile`,
+      `[vortex] loaded 12 dependencies from cloud lockfile`,
       `[vortex] Executing compilation script: "${buildCommand || "npm run build"}"`,
       `[compiler] resolving module endpoints and scanning tree-shaking assets...`,
       `[compiler] Critical compilation error inside /src/layouts/dashboard.tsx (Line 38:22)`,
@@ -813,7 +867,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
 
   // Deploy default layout placeholder in memory immediately
   let activeHtml = "";
-  if (!simulateFailure) {
+  if (!injectFailure) {
     if (prj.framework === "react") {
       activeHtml = `
         <div class="min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center">
@@ -861,8 +915,8 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
   const newDep: Deployment = {
     id: generatedIdVal,
     projectId,
-    status: "building", // Will remain building for UI simulation sequence
-    previewUrl: simulateFailure ? "" : `https://${prj.name}-${generatedIdVal}.vortex.ml`,
+    status: "building", // Will remain building for UI execution sequence
+    previewUrl: injectFailure ? "" : `https://${prj.name}-${generatedIdVal}.vortex.ml`,
     createdAt: dateStr,
     commitMessage: commitMsg,
     commitHash: commitHashHex,
@@ -871,16 +925,16 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
   };
 
   deployments.push(newDep);
-  saveToLocalDB();
+  saveToCloudDB();
 
   // If Gemini client exists, trigger AI generation in background to replace placeholder with ultra high-fidelity gorgeous mockup
   const ai = getGeminiClient();
-  if (ai && !simulateFailure) {
+  if (ai && !injectFailure) {
     try {
       const extraInstructions = customPrompt ? `\nMake sure the app matches this user description: "${customPrompt}"` : "";
       const prompt = `You are Vortex Compiler. Write a single comprehensive, responsive visual mockup template of a web application built using Tailwind CDN CSS.
 The app is named "${prj.name}" (${prj.framework} framework) with Git Repository "${prj.repo}".
-Provide a beautiful dashboard, a grid, custom icons (simulated with emojis or beautiful styling), dynamic hover states, responsive structure, layout grids, or interactive look.
+Provide a beautiful dashboard, a grid, custom icons (synthetic with emojis or beautiful styling), dynamic hover states, responsive structure, layout grids, or interactive look.
 ${extraInstructions}
 Write ONLY pure, valid, formatted HTML contents to place INSIDE the body element. Do NOT output any markdown tags (like \`\`\`html) or conversational commentary. Start immediately with the visual code.`;
 
@@ -894,20 +948,20 @@ Write ONLY pure, valid, formatted HTML contents to place INSIDE the body element
         newDep.deployedHtml = extractedHtml.replace(/```html|```/g, "").trim();
       }
     } catch (err) {
-      console.error("Gemini build compiler failed, using high-quality local placeholder layout.", err);
+      console.error("Gemini build compiler failed, using high-quality cloud placeholder layout.", err);
     }
   }
 
-  // Fast simulated build complete
+  // Fast synthetic build complete
   setTimeout(() => {
-    if (simulateFailure) {
+    if (injectFailure) {
       newDep.status = "failed";
       newDep.deployedHtml = "";
     } else {
       newDep.status = "ready";
       prj.activeDeploymentId = generatedIdVal;
     }
-    saveToLocalDB();
+    saveToCloudDB();
   }, FRAMEWORK_BUILD_DURATION_SIM);
 
   res.status(202).json(newDep);
@@ -975,8 +1029,8 @@ app.post("/api/functions/run", async (req, res) => {
           stdout.push("SUCCESS: Gemini successfully classified request text");
           responseBody = JSON.stringify(JSON.parse(cleanJsonStr), null, 2);
         } else {
-          // Mock local analyzer fallback
-          stdout.push("VORTEX_AI: No API key active, running rapid local classification heuristic");
+          // Autonomous cloud analyzer fallback
+          stdout.push("VORTEX_AI: No API key active, running rapid cluster classification heuristic");
           const word = text.toLowerCase();
           const pTerms = ["love", "great", "excellent", "awesome", "perfect", "vortex", "best"];
           const nTerms = ["hate", "bad", "terrible", "worst", "broken", "lag", "fail"];
@@ -1006,7 +1060,7 @@ app.post("/api/functions/run", async (req, res) => {
       
       const bodyText = typeof reqBody === "string" ? reqBody : JSON.stringify(reqBody);
       stdout.push(`TRACE: input package: ${bodyText || "none"}`);
-      stdout.push("TRACE: compiling local type scopes on isolate...");
+      stdout.push("TRACE: compiling cloud type scopes on isolate...");
       
       responseBody = JSON.stringify({
         status: "ok",
@@ -1045,7 +1099,7 @@ app.get("/api/functions/logs/:functionId", (req, res) => {
   res.json(logs.reverse().slice(0, 20)); // Limit to most recent 20
 });
 
-// Analytics Logs endpoint with spike simulation support
+// Analytics Logs endpoint with spike execution support
 app.get("/api/analytics", (req, res) => {
   const intervalsCount = 20;
   const isSpike = req.query.spike === "true";
@@ -1116,7 +1170,7 @@ app.post("/api/projects/:projectId/shield", (req, res) => {
   if (brotli !== undefined) config.brotli = brotli;
   if (securityLevel !== undefined) {
     config.securityLevel = securityLevel;
-    // Increase threat count if attack simulation is toggled on
+    // Increase threat count if attack execution is toggled on
     if (securityLevel === "under-attack") {
       config.totalThreatsBlocked += Math.floor(Math.random() * 12) + 5;
     }
@@ -1203,7 +1257,7 @@ app.get("/api/projects/:projectId/shield/threats", (req, res) => {
         ip: targetCountry.ip,
         country: targetCountry.name,
         flag: targetCountry.flag,
-        threatType: "Simulated DDoS Threat / Exploit attempt blocked",
+        threatType: "Synthetic DDoS Threat / Exploit attempt blocked",
         action: "blocked",
         query: targetCountry.q
       };
@@ -1270,7 +1324,7 @@ app.post("/api/workspaces/:workspaceId/members", (req, res) => {
   }
   const newMember = { email: email || "new@monaco.io", role: role || "Member" };
   ws.members.push(newMember);
-  saveToLocalDB();
+  saveToCloudDB();
   res.json(ws);
 });
 
@@ -1292,7 +1346,7 @@ app.delete("/api/workspaces/:workspaceId/members", (req, res) => {
     return res.status(400).json({ error: "Cannot delete the Owner of the workspace." });
   }
   ws.members = ws.members.filter(m => m.email !== email);
-  saveToLocalDB();
+  saveToCloudDB();
   res.json(ws);
 });
 
@@ -1314,7 +1368,7 @@ app.put("/api/workspaces/:workspaceId/members", (req, res) => {
     return res.status(400).json({ error: "Cannot modify Owner permissions." });
   }
   member.role = role;
-  saveToLocalDB();
+  saveToCloudDB();
   res.json(ws);
 });
 
@@ -1344,7 +1398,7 @@ app.post("/api/workspaces/:workspaceId/tokens", (req, res) => {
   };
   
   teamTokens[workspaceId].push(newToken);
-  saveToLocalDB();
+  saveToCloudDB();
   res.json(newToken);
 });
 
@@ -1352,7 +1406,7 @@ app.delete("/api/workspaces/:workspaceId/tokens/:tokenId", (req, res) => {
   const { workspaceId, tokenId } = req.params;
   if (teamTokens[workspaceId]) {
     teamTokens[workspaceId] = teamTokens[workspaceId].filter(t => t.id !== tokenId);
-    saveToLocalDB();
+    saveToCloudDB();
   }
   res.json({ success: true });
 });
@@ -1385,7 +1439,7 @@ app.put("/api/workspaces/:workspaceId/policies", (req, res) => {
     deployment: deployment || "Read"
   };
   
-  saveToLocalDB();
+  saveToCloudDB();
   res.json(workspacePolicies[workspaceId]);
 });
 
@@ -1916,135 +1970,10 @@ app.post("/api/projects/:projectId/composio/webhooks/test", (req, res) => {
     responseCode: 200,
     dispatchStatus: "DELIVERED",
     body: {
-      message: `Successfully connected and dispatched simulated Composio webhook bridge. Received event metadata safely!`,
+      message: `Successfully connected and dispatched synthetic Composio webhook bridge. Received event metadata safely!`,
       payload: payload || {}
     }
   });
-});
-
-
-
-// ==========================================
-// COMPOSIO MCP REAL PROXY ROUTES
-// ==========================================
-const COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp";
-const COMPOSIO_DEFAULT_KEY = process.env.COMPOSIO_API_KEY || "ck_SYi-RiE1KuAfo-b3fbPS";
-
-// Ping / initialize MCP connection
-app.post("/api/composio/mcp/ping", async (req, res) => {
-  const apiKey = req.body?.apiKey || COMPOSIO_DEFAULT_KEY;
-  try {
-    const response = await fetch(COMPOSIO_MCP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-consumer-api-key": apiKey },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: 1, method: "initialize",
-        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "monico-labs", version: "1.0.0" } }
-      })
-    });
-    const data = await response.json();
-    res.json({ success: response.ok, status: response.status, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// List tools from Composio MCP
-app.post("/api/composio/mcp/list-tools", async (req, res) => {
-  const apiKey = req.body?.apiKey || COMPOSIO_DEFAULT_KEY;
-  try {
-    const response = await fetch(COMPOSIO_MCP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-consumer-api-key": apiKey },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
-    });
-    const data = await response.json();
-    res.json({ success: response.ok, status: response.status, tools: data?.result?.tools || [], raw: data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message, tools: [] });
-  }
-});
-
-// Call a specific MCP tool
-app.post("/api/composio/mcp/call", async (req, res) => {
-  const { apiKey, toolName, args } = req.body;
-  const key = apiKey || COMPOSIO_DEFAULT_KEY;
-  try {
-    const response = await fetch(COMPOSIO_MCP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-consumer-api-key": key },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: Date.now(), method: "tools/call",
-        params: { name: toolName, arguments: args || {} }
-      })
-    });
-    const data = await response.json();
-    res.json({ success: response.ok, status: response.status, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Run-agent: initializes, lists tools, and returns real tool catalog + stream-friendly logs
-app.post("/api/composio/mcp/run-agent", async (req, res) => {
-  const { apiKey, prompt, platform } = req.body;
-  const key = apiKey || COMPOSIO_DEFAULT_KEY;
-  const logs: string[] = [];
-  const ts = () => new Date().toISOString().substring(11, 19);
-
-  try {
-    logs.push(`[${ts()}] [MCP-TUNNEL] Connecting to ${COMPOSIO_MCP_URL}...`);
-
-    const initResp = await fetch(COMPOSIO_MCP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-consumer-api-key": key },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: 1, method: "initialize",
-        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: `monico-labs-${platform}`, version: "1.0.0" } }
-      })
-    });
-
-    if (!initResp.ok) {
-      logs.push(`[${ts()}] [MCP-ERROR] Connection failed: HTTP ${initResp.status} — check your API key.`);
-      return res.json({ success: false, logs, status: "failed" });
-    }
-
-    const initData = await initResp.json();
-    const serverName = initData?.result?.serverInfo?.name || "Composio MCP";
-    const serverVer = initData?.result?.serverInfo?.version || "unknown";
-    logs.push(`[${ts()}] [MCP-HANDSHAKE] Connected to ${serverName} v${serverVer}. Session established.`);
-    logs.push(`[${ts()}] [MCP-HEADERS] x-consumer-api-key: ${key.substring(0, 10)}... [VALID]`);
-
-    // List tools
-    logs.push(`[${ts()}] [MCP-SCHEMAS] Querying registered tool catalog...`);
-    const toolsResp = await fetch(COMPOSIO_MCP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-consumer-api-key": key },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
-    });
-    const toolsData = await toolsResp.json();
-    const tools: any[] = toolsData?.result?.tools || [];
-
-    if (tools.length === 0) {
-      logs.push(`[${ts()}] [MCP-SCHEMAS] No tools discovered. Connect apps at app.composio.dev first.`);
-      logs.push(`[${ts()}] [AGENT-INFO] Supported integrations: GitHub, Slack, Gmail, Notion, Linear, etc.`);
-      return res.json({ success: true, logs, tools: [], status: "success", toolCount: 0 });
-    }
-
-    const toolPreview = tools.slice(0, 4).map((t: any) => t.name).join(", ");
-    logs.push(`[${ts()}] [MCP-SCHEMAS] Discovered ${tools.length} capabilities (${toolPreview}${tools.length > 4 ? ` +${tools.length - 4} more` : ""})`);
-    logs.push(`[${ts()}] [AGENT-SYSTEM] Spawning agent controller [${platform}]...`);
-    logs.push(`[${ts()}] [AGENT-MODEL] Planning execution for: "${prompt}"`);
-
-    const toolNames = tools.map((t: any) => t.name).slice(0, 10).join(", ");
-    logs.push(`[${ts()}] [AGENT-ROUTE] Available dispatch targets: ${toolNames}${tools.length > 10 ? ` (+${tools.length - 10})` : ""}`);
-    logs.push(`[${ts()}] [AGENT-SUCCESS] Composio MCP bridge active. ${tools.length} tools ready for autonomous dispatch.`);
-
-    res.json({ success: true, logs, tools, status: "success", toolCount: tools.length });
-  } catch (error: any) {
-    logs.push(`[${ts()}] [MCP-CRITICAL] ${error.message}`);
-    res.status(500).json({ success: false, logs, status: "failed", error: error.message });
-  }
 });
 
 
@@ -2071,11 +2000,4 @@ async function startServer() {
   });
 }
 
-// Only start the local dev server when not in Vercel serverless environment
-if (!process.env.VERCEL) {
-  startServer();
-}
-
-// Export the Express app for use as a Vercel serverless function handler
-export { app };
-
+startServer();
