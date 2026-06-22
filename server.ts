@@ -5,8 +5,64 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
+import { spawn } from "child_process";
 
 dotenv.config();
+
+// ─── Vortex Self-Hosting: Public URL via Cloudflare Quick Tunnel ───────────────
+let vortexPublicUrl: string | null = null;
+
+async function bootstrapCloudflaredTunnel(port: number | string): Promise<void> {
+  console.log("[vortex] Bootstrapping Cloudflare Quick Tunnel (no account needed)...");
+  try {
+    // Download cloudflared binary for the current platform
+    const { bin, install } = await import("cloudflared");
+    await install(bin);
+
+    const child = spawn(bin, ["tunnel", "--url", `http://localhost:${port}`], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const extractUrl = (data: Buffer) => {
+      if (vortexPublicUrl) return;
+      const text = data.toString();
+      const match = text.match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/i);
+      if (match) {
+        vortexPublicUrl = match[0];
+        console.log(`\n[vortex] ╔══════════════════════════════════════════╗`);
+        console.log(`[vortex] ║  PUBLIC URL: ${vortexPublicUrl}`);
+        console.log(`[vortex] ╚══════════════════════════════════════════╝\n`);
+        // Self-register via the domain allocation endpoint
+        setTimeout(async () => {
+          try {
+            const hostname = vortexPublicUrl!.replace("https://", "");
+            const res = await fetch(`http://localhost:${port}/api/projects/proj-1/domains`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ domain: hostname }),
+            });
+            if (res.ok) console.log(`[vortex] Self-registered: ${hostname} → active-gate domain`);
+          } catch {}
+        }, 1000);
+      }
+    };
+
+    child.stdout?.on("data", extractUrl);
+    child.stderr?.on("data", extractUrl);
+    child.on("error", (err) => console.error("[vortex] cloudflared error:", err.message));
+    child.on("exit", (code) => {
+      if (code !== 0) console.warn(`[vortex] cloudflared exited with code ${code}`);
+    });
+
+    // Graceful shutdown
+    const shutdown = () => { child.kill(); process.exit(0); };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+  } catch (err: any) {
+    console.error("[vortex] Tunnel setup failed:", err?.message || err);
+    console.log("[vortex] Running without public tunnel. Start manually: cloudflared tunnel --url http://localhost:" + port);
+  }
+}
 
 // Ensure the ID generator is fast and safe
 const generateId = () => Math.random().toString(36).substring(2, 10);
@@ -37,6 +93,17 @@ app.get("/api/metrics", (req, res) => {
     totalRam: os.totalmem() / (1024 * 1024),
     currentCpu: metricsHistory[metricsHistory.length - 1].cpu,
     currentRam: metricsHistory[metricsHistory.length - 1].ram
+  });
+});
+
+app.get("/api/system/info", (_req, res) => {
+  res.json({
+    publicUrl: vortexPublicUrl,
+    localPort: PORT,
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version,
+    uptime: process.uptime(),
   });
 });
 
@@ -1997,7 +2064,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[vortex] Server online on http://0.0.0.0:${PORT}`);
+    // Launch Cloudflare Quick Tunnel for instant public access (no account needed)
+    bootstrapCloudflaredTunnel(PORT);
   });
 }
 
 startServer();
+
