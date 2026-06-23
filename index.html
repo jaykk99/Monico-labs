@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <script>
+      // Vortex API router — in production, redirect /api/* to the Supabase Edge Function
+      (function() {
+        var API_BASE = window.__VORTEX_API_BASE__ || '';
+        if (!API_BASE) return;
+        var _fetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          if (typeof input === 'string' && input.startsWith('/api')) {
+            input = API_BASE + input;
+          } else if (input instanceof Request && input.url && new URL(input.url, location.href).pathname.startsWith('/api')) {
+            var u = new URL(input.url, location.href);
+            input = new Request(API_BASE + u.pathname + u.search, input);
+          }
+          return _fetch(input, init);
+        };
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
