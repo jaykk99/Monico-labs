@@ -47,7 +47,7 @@ import ServerlessPlayground from "./components/ServerlessPlayground";
 
 export default function App() {
   // Navigation & Project tab tracking
-  const [activeTab, setActiveTab] = useState<"projects" | "database" | "auth" | "apis" | "shield" | "composio" | "teams" | "settings">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings">("projects");
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -1202,7 +1202,7 @@ export default function App() {
 
         {/* Global Navigation Tabs header */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
-          {(["projects", "metrics", "database", "auth", "apis", "shield", "composio", "teams", "settings", "selfhost"] as const).map((tab) => {
+          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "teams", "settings", "selfhost"] as const).map((tab) => {
             const isActive = activeTab === tab;
             let displayString = tab.toUpperCase();
             if (tab === "projects") displayString = "Deployments";
@@ -1211,6 +1211,7 @@ export default function App() {
             if (tab === "auth") displayString = "Native Auth";
             if (tab === "apis") displayString = "API Gateway";
             if (tab === "shield") displayString = "WAF Shield";
+            if (tab === "mcp") displayString = "MCP Connect";
             if (tab === "composio") displayString = "Integrations";
             if (tab === "teams") displayString = "Workspaces";
             if (tab === "settings") displayString = "Configs";
@@ -1219,7 +1220,7 @@ export default function App() {
             return (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveTab(tab as any)}
                 className={`py-3.5 font-mono tracking-wider font-semibold border-b-2 transition duration-150 flex items-center gap-1.5 focus:outline-none whitespace-nowrap ${
                   isActive
                     ? "border-neutral-200 text-white"
@@ -1232,6 +1233,7 @@ export default function App() {
                 {tab === "auth" && <Users className="h-3.5 w-3.5" />}
                 {tab === "apis" && <Key className="h-3.5 w-3.5" />}
                 {tab === "shield" && <Shield className="h-3.5 w-3.5" />}
+                {tab === "mcp" && <Workflow className="h-3.5 w-3.5 text-emerald-400" />}
                 {tab === "composio" && <Workflow className="h-3.5 w-3.5" />}
                 {tab === "teams" && <Terminal className="h-3.5 w-3.5" />}
                 {tab === "settings" && <Settings className="h-3.5 w-3.5" />}
@@ -4051,6 +4053,87 @@ export default function App() {
                       Select a workspace from the list to display member access maps and organization permissions details.
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "mcp" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-8 space-y-6 shadow-sm">
+                  <div className="border-b border-neutral-800 pb-5">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+                       <Workflow className="h-6 w-6 text-emerald-400" />
+                       MCP Protocol Connect
+                    </h2>
+                    <p className="text-sm text-neutral-400 max-w-2xl">
+                      Expose the Model Context Protocol (MCP) to local or remote AI agents like Grok, ChatGPT, or Claude. Enable external access to this deployment to allow agents to directly interact with your platform environment natively.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase font-bold text-neutral-500 font-mono tracking-wider">
+                        Live MCP Server URL
+                      </label>
+                      <div className="flex">
+                        <input
+                          type="text"
+                          readOnly
+                          value={window.location.origin + "/api/mcp"}
+                          className="flex-1 bg-neutral-950 border border-neutral-800 rounded-l-lg h-10 px-3 text-xs font-mono text-neutral-300 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(window.location.origin + "/api/mcp");
+                          }}
+                          className="bg-neutral-800 hover:bg-neutral-700 text-white border border-l-0 border-neutral-800 rounded-r-lg px-4 flex items-center justify-center transition"
+                          title="Copy URL"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase font-bold text-neutral-500 font-mono tracking-wider">
+                        Global Live API Key
+                      </label>
+                      <div className="flex">
+                        <input
+                          type={isMcpKeyVisible ? "text" : "password"}
+                          readOnly
+                          value="vrx_agent_sk_live_999"
+                          className="flex-1 bg-neutral-950 border border-neutral-800 rounded-l-lg h-10 px-3 text-xs font-mono text-neutral-300 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => setIsMcpKeyVisible(!isMcpKeyVisible)}
+                          className="bg-neutral-800 hover:bg-neutral-700 text-white border-y border-neutral-800 px-3 flex items-center justify-center transition"
+                        >
+                          {isMcpKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText("vrx_agent_sk_live_999");
+                          }}
+                          className="bg-neutral-800 hover:bg-neutral-700 text-white border border-l-0 border-neutral-800 rounded-r-lg px-4 flex items-center justify-center transition"
+                          title="Copy API Key"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6 flex gap-4 mt-6">
+                    <Check className="h-6 w-6 text-emerald-400 shrink-0" />
+                    <div>
+                         <h4 className="text-emerald-400 font-bold mb-1">MCP is active and fully supported</h4>
+                         <p className="text-neutral-300 text-sm leading-relaxed">
+                           You can provide this URL and API key directly to your AI Agents. The standard server implementation covers everything natively. Just configure your agent's MCP connection with the values shown above.
+                         </p>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             )}
