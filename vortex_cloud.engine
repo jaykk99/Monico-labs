@@ -328,6 +328,22 @@
   },
   "deployments": [
     {
+      "id": "dep-o8jfz0n8",
+      "projectId": "proj-1",
+      "status": "ready",
+      "previewUrl": "/api/preview/dep-o8jfz0n8",
+      "createdAt": "2026-06-23T17:26:54.759Z",
+      "commitMessage": "Agent Native MCP Deployment",
+      "commitHash": "62788a1",
+      "buildLogs": [
+        "[vortex-agent] Authenticated via MCP Protocol JSON-RPC.",
+        "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.",
+        "[vortex-agent] Native Edge domain assignment provisioned.",
+        "[vortex-agent] Deployment successful! 🎉"
+      ],
+      "deployedHtml": "<h1>Grok was here!</h1>"
+    },
+    {
       "id": "dep-plmyfs6m",
       "projectId": "proj-1",
       "status": "ready",

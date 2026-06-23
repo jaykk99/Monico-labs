@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
+import cors from "cors";
 
 dotenv.config();
 
@@ -12,8 +13,9 @@ dotenv.config();
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
+app.use(cors());
 app.use(express.json());
 
 // Background metrics collector
@@ -2044,8 +2046,7 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
 app.get("/api/mcp/sse", async (req, res) => {
   console.log("MCP SSE Connection initialized");
   const transport = new SSEServerTransport("/api/mcp/message", res);
-  await transport.start();
-  mcpServer.connect(transport);
+  await mcpServer.connect(transport);
   transports.set(transport.sessionId, transport);
   
   res.on("close", () => {
@@ -2060,7 +2061,7 @@ app.post("/api/mcp/message", mcpAuthMiddleware, async (req, res) => {
   if (!transport) {
     return res.status(404).send("Session not found or MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
   }
-  await transport.handlePostMessage(req, res);
+  await transport.handlePostMessage(req, res, req.body);
 });
 
 // ==========================================
