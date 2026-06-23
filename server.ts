@@ -9,8 +9,13 @@ import { spawn } from "child_process";
 
 dotenv.config();
 
-// ─── Vortex Self-Hosting: Public URL via Cloudflare Quick Tunnel ───────────────
-let vortexPublicUrl: string | null = null;
+// ─── Vortex Self-Hosting: Public URL Resolution ──────────────────────────────
+// Priority 1: APP_URL injected by AI Studio (Cloud Run) — stable, no tunnel needed
+// Priority 2: cloudflared Quick Tunnel — fallback for GitHub Actions / local dev
+let vortexPublicUrl: string | null = process.env.APP_URL || null;
+if (vortexPublicUrl) {
+  console.log(`[vortex] Using AI Studio domain: ${vortexPublicUrl}`);
+}
 
 async function bootstrapCloudflaredTunnel(port: number | string): Promise<void> {
   console.log("[vortex] Bootstrapping Cloudflare Quick Tunnel (no account needed)...");
@@ -2064,8 +2069,23 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[vortex] Server online on http://0.0.0.0:${PORT}`);
-    // Launch Cloudflare Quick Tunnel for instant public access (no account needed)
-    bootstrapCloudflaredTunnel(PORT);
+    // Use AI Studio domain if available; otherwise spawn cloudflared tunnel
+    if (!vortexPublicUrl) {
+      bootstrapCloudflaredTunnel(PORT);
+    } else {
+      // Self-register the AI Studio domain via Vortex domain allocation
+      setTimeout(async () => {
+        try {
+          const hostname = vortexPublicUrl!.replace(/^https?:\/\//, "");
+          const res = await fetch(`http://localhost:${PORT}/api/projects/proj-1/domains`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ domain: hostname }),
+          });
+          if (res.ok) console.log(`[vortex] Domain registered: ${hostname}`);
+        } catch {}
+      }, 1000);
+    }
   });
 }
 
