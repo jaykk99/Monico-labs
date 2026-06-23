@@ -35,9 +35,9 @@ import {
   Copy,
   ChevronRight,
   Play,
-  Server
+  Server,
+  AlertTriangle
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
 import { Project, Deployment, EnvVar, ComposioConnector } from "./types";
 import MetricCard from "./components/MetricCard";
 import DeploymentLogConsole from "./components/DeploymentLogConsole";
@@ -47,7 +47,7 @@ import ServerlessPlayground from "./components/ServerlessPlayground";
 
 export default function App() {
   // Navigation & Project tab tracking
-  const [activeTab, setActiveTab] = useState<"projects" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings" | "selfhost" | "errors">("projects");
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -153,38 +153,7 @@ export default function App() {
   const [currentCpu, setCurrentCpu] = useState(0);
   const [currentRam, setCurrentRam] = useState(0);
 
-  // --- PLATFORM ADMINISTRATION LOGIN STATE ---
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem("vortex_admin_session") === "jayomer1234@gmail.com";
-  });
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    setLoginError("");
-
-    setTimeout(() => {
-      if (loginEmail.trim().toLowerCase() === "jayomer1234@gmail.com" && loginPassword === "Jayisthegoat") {
-        localStorage.setItem("vortex_admin_session", "jayomer1234@gmail.com");
-        setIsLoggedIn(true);
-        setIsLoggingIn(false);
-      } else {
-        setLoginError("✗ [VORTEX_SECURE] Invalid operational authorization credentials.");
-        setIsLoggingIn(false);
-      }
-    }, 800);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("vortex_admin_session");
-    setIsLoggedIn(false);
-    setLoginEmail("");
-    setLoginPassword("");
-  };
 
   // --- AGENT AUTOPILOT SUBDOMAIN DEPLOYER STATE ---
   const [agentAllocSubdomain, setAgentAllocSubdomain] = useState("my-secured-endpoint");
@@ -1061,83 +1030,7 @@ export default function App() {
     );
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-[#070707] text-neutral-200 font-sans flex items-center justify-center p-4 selection:bg-neutral-800 selection:text-white" id="vortex-login-screen">
-        <div className="w-full max-w-md bg-neutral-950 border border-neutral-900 rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Subtle background glow effect */}
-          <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
-          
-          <div className="space-y-2 text-center">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-900 border border-neutral-850 text-white mb-2 shadow-inner">
-              <Command className="h-6 w-6" />
-            </div>
-            <h1 className="text-lg font-black font-mono tracking-widest text-white uppercase">VORTEX CLOUD PLATFORM</h1>
-            <p className="text-xs text-neutral-500 font-mono uppercase tracking-wider leading-relaxed">
-              Consolidated Infrastructure & Cloud Database Engine
-            </p>
-          </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] text-neutral-550 font-bold uppercase tracking-wider block font-mono">
-                Operator Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="operator@monaco.io"
-                className="w-full bg-neutral-900 border border-neutral-850 rounded-xl h-11 px-4 text-xs font-mono text-neutral-200 focus:outline-none focus:border-neutral-750 transition"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] text-neutral-550 font-bold uppercase tracking-wider block font-mono">
-                  Administrative Password
-                </label>
-                <span className="text-[8.5px] text-indigo-405 font-mono">SECURED KEYPASS</span>
-              </div>
-              <input
-                type="password"
-                required
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="••••••••••••••"
-                className="w-full bg-neutral-900 border border-neutral-850 rounded-xl h-11 px-4 text-xs font-mono text-neutral-200 focus:outline-none focus:border-neutral-750 transition"
-              />
-            </div>
-
-            {loginError && (
-              <div className="p-3 bg-red-950/10 border border-red-900/30 rounded-xl text-[10.5px] font-mono text-red-450 leading-relaxed text-center animate-in fade-in zoom-in-95">
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-950 h-11 rounded-xl text-xs font-mono font-black uppercase tracking-wider transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:bg-neutral-900 disabled:text-neutral-600 disabled:cursor-not-allowed"
-            >
-              {isLoggingIn ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  AUTHENTICATING OPERATOR...
-                </>
-              ) : (
-                <>
-                  <span>Initialize Console Handshake</span>
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#070707] text-neutral-200 font-sans antialiased selection:bg-neutral-800 selection:text-white">
@@ -1188,21 +1081,12 @@ export default function App() {
               <Plus className="h-4 w-4" />
               IMPORT GIT
             </button>
-
-            <button
-              onClick={handleLogout}
-              className="bg-neutral-950 hover:bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-805 text-xs font-mono h-9 rounded-lg px-3 transition flex items-center justify-center gap-1.5"
-              id="dev-logout-btn"
-            >
-              <EyeOff className="h-3.5 w-3.5" />
-              SIGN OUT
-            </button>
           </div>
         </div>
 
         {/* Global Navigation Tabs header */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
-          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "teams", "settings", "selfhost"] as const).map((tab) => {
+          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
             const isActive = activeTab === tab;
             let displayString = tab.toUpperCase();
             if (tab === "projects") displayString = "Deployments";
@@ -1216,6 +1100,7 @@ export default function App() {
             if (tab === "teams") displayString = "Workspaces";
             if (tab === "settings") displayString = "Configs";
             if (tab === "selfhost") displayString = "Self-Host Ops";
+            if (tab === "errors") displayString = "Error Handling";
 
             return (
               <button
@@ -1238,6 +1123,7 @@ export default function App() {
                 {tab === "teams" && <Terminal className="h-3.5 w-3.5" />}
                 {tab === "settings" && <Settings className="h-3.5 w-3.5" />}
                 {tab === "selfhost" && <Server className="h-3.5 w-3.5" />}
+                {tab === "errors" && <AlertTriangle className="h-3.5 w-3.5" />}
                 {displayString}
               </button>
             );
@@ -5237,6 +5123,51 @@ pm2 save && pm2 startup`}
 
                   <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-xs font-bold mt-4">
                     NOTE: This architecture serves as its own fully independent Platform-as-a-Service layer. It handles dynamic container routing, environment variables, live metrics plotting, edge deployments, and distributed database state natively through internal network execution handlers. No external provider is necessary.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "errors" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 font-mono">
+                      System Anomalies & Deployment Errors
+                    </h3>
+                  </div>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden text-sm">
+                  <div className="grid grid-cols-12 gap-4 border-b border-neutral-800 bg-neutral-950 p-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest font-mono">
+                    <div className="col-span-3">Timestamp</div>
+                    <div className="col-span-3">Resource</div>
+                    <div className="col-span-6">Failure Signature / Error Details</div>
+                  </div>
+                  <div className="divide-y divide-neutral-800">
+                    {projectDeployments.filter(d => d.status === "failed").length === 0 ? (
+                      <div className="p-12 text-center text-neutral-500 font-mono text-xs">
+                        No anomalous artifacts or build faults detected in current project deployments.
+                      </div>
+                    ) : (
+                      projectDeployments.filter(d => d.status === "failed").map((dep) => (
+                        <div key={dep.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-neutral-850/50 transition">
+                          <div className="col-span-3 text-xs font-mono text-neutral-400">
+                            {new Date(dep.createdAt).toLocaleString()}
+                          </div>
+                          <div className="col-span-3">
+                            <span className="bg-red-950/30 text-red-400 border border-red-900/50 px-2 py-0.5 rounded text-[10px] font-mono whitespace-nowrap">
+                              {dep.id}
+                            </span>
+                          </div>
+                          <div className="col-span-6">
+                            <p className="text-neutral-300 text-xs font-mono leading-relaxed bg-red-950/10 p-2 rounded border border-red-900/20 break-all">
+                              {dep.commit || "Unknown Error"} [STATUS: FAILED_BUILD_OR_EXEC]
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

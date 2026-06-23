@@ -137,7 +137,7 @@ export default function InteractivePreviewFrame({
             title="Vortex Dynamic Micro Deployment Live Preview"
             className="w-full h-full bg-neutral-900"
             referrerPolicy="no-referrer"
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-same-origin"
           />
         </div>
       </div>
