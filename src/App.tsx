@@ -482,21 +482,53 @@ export default function App() {
       .catch((err) => console.error("Workspaces load error:", err));
   };
 
+  const isSameProject = (p1: any, p2: any) => {
+    if (!p1 || !p2) return false;
+    return p1.id === p2.id && 
+           p1.name === p2.name && 
+           p1.framework === p2.framework && 
+           p1.repo === p2.repo && 
+           p1.branch === p2.branch && 
+           p1.activeDeploymentId === p2.activeDeploymentId;
+  };
+
   useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => res.json())
-      .then((data) => {
-        setProjectsList(data);
-        if (data.length > 0) {
-          setCurrentProject(data[0]);
-        }
-        setIsInitializing(false);
-      })
-      .catch((err) => {
-        console.error("Critical error bootstrapping initial parameters", err);
-        setIsInitializing(false);
-      });
+    const fetchProjects = () => {
+      fetch("/api/projects")
+        .then((res) => res.json())
+        .then((data) => {
+          setProjectsList((prevList) => {
+            const listChanged = prevList.length !== data.length || 
+                                prevList.some((p, idx) => !isSameProject(p, data[idx]));
+            return listChanged ? data : prevList;
+          });
+          
+          if (data.length > 0) {
+            setCurrentProject((prev) => {
+              if (!prev) return data[0];
+              const updated = data.find((p: any) => p.id === prev.id);
+              if (!updated) return data[0]; // fallback if currently selected is gone
+              if (isSameProject(prev, updated)) {
+                return prev; // keep reference to prevent unnecessary updates
+              }
+              return updated;
+            });
+          } else {
+            setCurrentProject(null);
+          }
+          setIsInitializing(false);
+        })
+        .catch((err) => {
+          console.error("Critical error bootstrapping initial parameters", err);
+          setIsInitializing(false);
+        });
+    };
+
+    fetchProjects();
     fetchWorkspaces();
+
+    const interval = setInterval(fetchProjects, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // 2. Whenever selected Project alters, reload Environments, Routing Tables, Deployments History
@@ -546,6 +578,64 @@ export default function App() {
         setLoading(false);
       });
   }, [currentProject]);
+
+  // 2b. Poll deployments, domains, and database tables for the currently selected project to immediately show new changes triggered by AI/MCP agents
+  useEffect(() => {
+    if (!currentProject) return;
+    const projId = currentProject.id;
+    
+    const fetchActiveProjectUpdates = () => {
+      // 1. Fetch deployments list
+      fetch(`/api/projects/${projId}/deployments`)
+        .then((res) => res.json())
+        .then((deps) => {
+          setProjectDeployments((prevDeps) => {
+            const isSame = prevDeps.length === deps.length && 
+                           prevDeps.every((d, i) => d.id === deps[i].id && d.status === deps[i].status && d.commitMessage === deps[i].commitMessage);
+            if (isSame) return prevDeps;
+            
+            setActiveDeployment((prevActive) => {
+              if (!prevActive && deps.length > 0) return deps[0];
+              if (prevActive) {
+                const matched = deps.find((d: Deployment) => d.id === prevActive.id);
+                if (matched && (matched.status !== prevActive.status || matched.commitMessage !== prevActive.commitMessage)) {
+                  return matched;
+                }
+              }
+              return prevActive;
+            });
+            
+            return deps;
+          });
+        })
+        .catch((err) => console.error("Error polling deployments:", err));
+
+      // 2. Fetch custom domains mapping
+      fetch(`/api/projects/${projId}/domains`)
+        .then((res) => res.json())
+        .then((doms) => {
+          setDomainsList((prevDoms) => {
+            const isSame = prevDoms.length === doms.length && prevDoms.every((d, i) => d === doms[i]);
+            return isSame ? prevDoms : doms;
+          });
+        })
+        .catch((err) => console.error("Error polling domains:", err));
+
+      // 3. Fetch database tables
+      fetch(`/api/projects/${projId}/database/tables`)
+        .then((res) => res.json())
+        .then((tables) => {
+          setDbTables((prevTables) => {
+            const isSame = prevTables.length === tables.length && prevTables.every((t, i) => t.name === tables[i].name);
+            return isSame ? prevTables : tables;
+          });
+        })
+        .catch((err) => console.error("Error polling database tables:", err));
+    };
+
+    const interval = setInterval(fetchActiveProjectUpdates, 3000);
+    return () => clearInterval(interval);
+  }, [currentProject?.id]);
 
   // Shield periodic update polling hook (rapid 4 second polling to inject reverse proxy DDoS blocks)
   useEffect(() => {
