@@ -2089,5 +2089,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Export for Vercel serverless deployment
+export { app };
 
+// Only start the HTTP server when NOT running as a Vercel serverless function
+if (!process.env.VERCEL) {
+  startServer();
+}
