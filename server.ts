@@ -5,75 +5,14 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
-import { spawn } from "child_process";
 
 dotenv.config();
-
-// ─── Vortex Self-Hosting: Public URL Resolution ──────────────────────────────
-// Priority 1: APP_URL injected by AI Studio (Cloud Run) — stable, no tunnel needed
-// Priority 2: cloudflared Quick Tunnel — fallback for GitHub Actions / local dev
-let vortexPublicUrl: string | null = process.env.APP_URL || null;
-if (vortexPublicUrl) {
-  console.log(`[vortex] Using AI Studio domain: ${vortexPublicUrl}`);
-}
-
-async function bootstrapCloudflaredTunnel(port: number | string): Promise<void> {
-  console.log("[vortex] Bootstrapping Cloudflare Quick Tunnel (no account needed)...");
-  try {
-    // Download cloudflared binary for the current platform
-    const { bin, install } = await import("cloudflared");
-    await install(bin);
-
-    const child = spawn(bin, ["tunnel", "--url", `http://localhost:${port}`], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    const extractUrl = (data: Buffer) => {
-      if (vortexPublicUrl) return;
-      const text = data.toString();
-      const match = text.match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/i);
-      if (match) {
-        vortexPublicUrl = match[0];
-        console.log(`\n[vortex] ╔══════════════════════════════════════════╗`);
-        console.log(`[vortex] ║  PUBLIC URL: ${vortexPublicUrl}`);
-        console.log(`[vortex] ╚══════════════════════════════════════════╝\n`);
-        // Self-register via the domain allocation endpoint
-        setTimeout(async () => {
-          try {
-            const hostname = vortexPublicUrl!.replace("https://", "");
-            const res = await fetch(`http://localhost:${port}/api/projects/proj-1/domains`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ domain: hostname }),
-            });
-            if (res.ok) console.log(`[vortex] Self-registered: ${hostname} → active-gate domain`);
-          } catch {}
-        }, 1000);
-      }
-    };
-
-    child.stdout?.on("data", extractUrl);
-    child.stderr?.on("data", extractUrl);
-    child.on("error", (err) => console.error("[vortex] cloudflared error:", err.message));
-    child.on("exit", (code) => {
-      if (code !== 0) console.warn(`[vortex] cloudflared exited with code ${code}`);
-    });
-
-    // Graceful shutdown
-    const shutdown = () => { child.kill(); process.exit(0); };
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
-  } catch (err: any) {
-    console.error("[vortex] Tunnel setup failed:", err?.message || err);
-    console.log("[vortex] Running without public tunnel. Start manually: cloudflared tunnel --url http://localhost:" + port);
-  }
-}
 
 // Ensure the ID generator is fast and safe
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
@@ -98,17 +37,6 @@ app.get("/api/metrics", (req, res) => {
     totalRam: os.totalmem() / (1024 * 1024),
     currentCpu: metricsHistory[metricsHistory.length - 1].cpu,
     currentRam: metricsHistory[metricsHistory.length - 1].ram
-  });
-});
-
-app.get("/api/system/info", (_req, res) => {
-  res.json({
-    publicUrl: vortexPublicUrl,
-    localPort: PORT,
-    platform: process.platform,
-    arch: process.arch,
-    nodeVersion: process.version,
-    uptime: process.uptime(),
   });
 });
 
@@ -555,7 +483,7 @@ let workspacePolicies: Record<string, WorkspacePolicies> = {
 };
 
 // --- MONACO LABS CUSTOM PERSISTENT DATABASE ENGINE ---
-// This database operates entirely independently of third-party platforms like Vercel or Supabase.
+// This database operates entirely independently of third-party platforms like Vortex or Supabase.
 // It persists the entire server-side application state to distributed cloud volume.
 const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
 
@@ -643,7 +571,7 @@ loadFromCloudDB();
 app.use((req, res, next) => {
   const host = req.headers.host;
   // If the request isn't coming from our dashboard preview (localhost or run.app), check domains
-  if (host && !host.includes("localhost") && !host.includes("run.app") && !host.includes("vortex.ml")) {
+  if (host && !host.includes("localhost") && !host.includes("run.app") && host !== "vortex.ml") {
     let matchedProjectId: string | null = null;
     for (const [projectId, projectDomains] of Object.entries(domains)) {
       if (projectDomains.includes(host)) {
@@ -2069,30 +1997,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[vortex] Server online on http://0.0.0.0:${PORT}`);
-    // Use AI Studio domain if available; otherwise spawn cloudflared tunnel
-    if (!vortexPublicUrl) {
-      bootstrapCloudflaredTunnel(PORT);
-    } else {
-      // Self-register the AI Studio domain via Vortex domain allocation
-      setTimeout(async () => {
-        try {
-          const hostname = vortexPublicUrl!.replace(/^https?:\/\//, "");
-          const res = await fetch(`http://localhost:${PORT}/api/projects/proj-1/domains`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ domain: hostname }),
-          });
-          if (res.ok) console.log(`[vortex] Domain registered: ${hostname}`);
-        } catch {}
-      }, 1000);
-    }
   });
 }
 
-// Export for Vercel serverless deployment
-export { app };
-
-// Only start the HTTP server when NOT running as a Vercel serverless function
-if (!process.env.VERCEL) {
-  startServer();
-}
+startServer();

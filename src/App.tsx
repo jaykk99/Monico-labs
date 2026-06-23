@@ -231,8 +231,8 @@ export default function App() {
     { repo: "jayomer1234/micro-auth-service", framework: "serverless" },
   ];
 
-  // Nested Sub-Tabs & Advanced Feature States for Vercel/Supabase enclaves
-  const [activeVercelSubTab, setActiveVercelSubTab] = useState<"overview" | "edge-middleware" | "speed-insights" | "domains">("overview");
+  // Nested Sub-Tabs & Advanced Feature States for Vortex/Supabase enclaves
+  const [activeVortexSubTab, setActiveVortexSubTab] = useState<"overview" | "edge-middleware" | "speed-insights" | "domains">("overview");
   const [activeSupabaseSubTab, setActiveSupabaseSubTab] = useState<"instances" | "tables" | "templates" | "scaling" | "api-docs">("instances");
 
   // Vortex Cloud Expansive states
@@ -251,7 +251,7 @@ export default function App() {
   const [newDbInstanceName, setNewDbInstanceName] = useState("");
   const [newDbRegion, setNewDbRegion] = useState("US-East-1 (N. Virginia)");
 
-  // Vercel: Edge Middleware Rules
+  // Vortex: Edge Middleware Rules
   const [middlewareRules, setMiddlewareRules] = useState<any[]>([
     { id: "mw-1", path: "/old-blog/*", action: "redirect", target: "/blog/$1", status: "301", active: true },
     { id: "mw-2", path: "/api/*", action: "inject_header", target: "x-edge-geo: {country-code}", status: "200", active: true },
@@ -262,7 +262,7 @@ export default function App() {
   const [newMwTarget, setNewMwTarget] = useState("");
   const [newMwStatus, setNewMwStatus] = useState("301");
 
-  // Vercel: Speed Insights Controls
+  // Vortex: Speed Insights Controls
   const [insightsComplexity, setInsightsComplexity] = useState(30); // Interactive scale impacting JS INP/FCP metrics
   const [insightsDelay, setInsightsDelay] = useState(1.2);         // Slider scale impacting Image loading / LCP
   const [insightsNoSize, setInsightsNoSize] = useState(false);        // Checkbox triggering layout shifts / CLS
@@ -292,7 +292,7 @@ export default function App() {
     { id: "ev-1", table: "users_profiles", type: "INSERT", schema: "public", timestamp: "19:54:12", payload: { id: "p_81", display_name: "Alice Key", email: "alice@vibe.io", status: "active" } }
   ]);
 
-  // --- Vercel/Supabase Advanced Mock Functions ---
+  // --- Vortex/Supabase Advanced Mock Functions ---
   const handleAddMwRule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMwPath.trim()) return;
@@ -411,7 +411,7 @@ export default function App() {
     if (chosenTable === "users_profiles") {
       payloadSeed = {
         id: `usr_${mockRecordId}`,
-        display_name: ["Dave Developer", "Jane Doe", "Satoshi Nakamoto", "Vercel Wizard"][Math.floor(Math.random() * 4)],
+        display_name: ["Dave Developer", "Jane Doe", "Satoshi Nakamoto", "Vortex Wizard"][Math.floor(Math.random() * 4)],
         email: `client_${mockRecordId}@domain.io`,
         status: chosenAction === "DELETE" ? "inactive" : "active"
       };
@@ -1319,7 +1319,7 @@ export default function App() {
             {activeTab === "projects" && (
               <div className="space-y-6">
                 
-                {/* Vercel Sub-Tab Bar Navigation */}
+                {/* Vortex Sub-Tab Bar Navigation */}
                 <div className="flex items-center gap-1.5 border-b border-neutral-900 pb-3 mb-6 font-mono text-[11px] overflow-x-auto no-scrollbar">
                   {[
                     { id: "overview", label: "Project Overview", icon: <FolderOpen className="h-3.5 w-3.5" /> },
@@ -1329,9 +1329,9 @@ export default function App() {
                   ].map((st) => (
                     <button
                       key={st.id}
-                      onClick={() => setActiveVercelSubTab(st.id as any)}
+                      onClick={() => setActiveVortexSubTab(st.id as any)}
                       className={`h-8 px-3 rounded-lg flex items-center gap-1.5 font-bold transition duration-150 border uppercase cursor-pointer ${
-                        activeVercelSubTab === st.id
+                        activeVortexSubTab === st.id
                           ? "bg-neutral-100 border-neutral-300 text-neutral-950 font-black shadow-sm"
                           : "bg-neutral-950/40 border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-850"
                       }`}
@@ -1342,7 +1342,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {activeVercelSubTab === "overview" && (
+                {activeVortexSubTab === "overview" && (
                   <div className="space-y-6 animate-in fade-in duration-200">
                     {/* Visual statistics micro cluster */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1439,12 +1439,12 @@ export default function App() {
                   </div>
                 )}
 
-                {activeVercelSubTab === "edge-middleware" && (
+                {activeVortexSubTab === "edge-middleware" && (
                   <div className="space-y-6 animate-in fade-in duration-200">
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 font-mono flex items-center gap-2">
                         <Cpu className="h-4.5 w-4.5 text-neutral-400" />
-                        Vercel Edge Middleware Sandbox
+                        Vortex Edge Middleware Sandbox
                       </h3>
                       <p className="text-xs text-neutral-505 leading-relaxed max-w-3xl font-mono">
                         Deploy light interceptor scripts running on Vortex global edge Anycast nodes. Inject response headers, trigger geolocation redirects, rewrite incoming paths, or block user scrapers at layer 7.
@@ -1558,7 +1558,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeVercelSubTab === "speed-insights" && (() => {
+                {activeVortexSubTab === "speed-insights" && (() => {
                   const calculatedLcp = (0.5 + insightsDelay * 1.5).toFixed(1);
                   const calculatedInp = Math.floor(20 + insightsComplexity * 2.8);
                   const calculatedFcp = (0.3 + (insightsComplexity * 0.04)).toFixed(1);
@@ -1574,7 +1574,7 @@ export default function App() {
                       <div className="space-y-1">
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
                           <Activity className="h-4.5 w-4.5 text-neutral-400" />
-                          Vercel Analytics & Speed Insights
+                          Vortex Analytics & Speed Insights
                         </h3>
                         <p className="text-xs text-neutral-505 leading-relaxed max-w-3xl">
                           Analyze real-user metrics captured over global Edge Edge Network endpoints. Adjust loading weight modifiers to view performance profiles.
@@ -1759,7 +1759,7 @@ export default function App() {
                   );
                 })()}
 
-                {activeVercelSubTab === "domains" && (
+                {activeVortexSubTab === "domains" && (
                   <div className="space-y-6 animate-in fade-in duration-200 font-mono text-xs">
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
@@ -3182,7 +3182,7 @@ export default function App() {
                         },
                         {
                           title: "Next.js AI Chatbot Stack (MongoDB + AI SDK)",
-                          desc: "Full-stack client framework utilizing Vercel AI SDK and MongoDB. Includes prompt history and state management caches.",
+                          desc: "Full-stack client framework utilizing Vortex AI SDK and MongoDB. Includes prompt history and state management caches.",
                           tech: "Next.js, MongoDB, LLM",
                           engine: "mongodb",
                           label: "Deploy NextJS Hub",
