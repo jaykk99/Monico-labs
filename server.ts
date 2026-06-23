@@ -2023,7 +2023,7 @@ mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge 
    };
 });
 
-let mcpTransport: SSEServerTransport | null = null;
+let transports = new Map<string, SSEServerTransport>();
 
 const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
    const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
@@ -2041,17 +2041,26 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    next();
 };
 
-app.get("/api/mcp/sse", (req, res) => {
+app.get("/api/mcp/sse", async (req, res) => {
   console.log("MCP SSE Connection initialized");
-  mcpTransport = new SSEServerTransport("/api/mcp/message", res);
-  mcpServer.connect(mcpTransport);
+  const transport = new SSEServerTransport("/api/mcp/message", res);
+  await transport.start();
+  mcpServer.connect(transport);
+  transports.set(transport.sessionId, transport);
+  
+  res.on("close", () => {
+    transports.delete(transport.sessionId);
+    transport.close();
+  });
 });
 
 app.post("/api/mcp/message", mcpAuthMiddleware, async (req, res) => {
-  if (!mcpTransport) {
-    return res.status(400).send("MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
+  const sessionId = req.query.sessionId as string;
+  const transport = transports.get(sessionId);
+  if (!transport) {
+    return res.status(404).send("Session not found or MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
   }
-  await mcpTransport.handlePostMessage(req, res);
+  await transport.handlePostMessage(req, res);
 });
 
 // ==========================================
