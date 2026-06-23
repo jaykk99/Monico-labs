@@ -13,26 +13,13 @@ Unlike vendor-locked solutions, this application maintains its state inside a st
 ---
 
 ## 🌐 How to Programmatically Bind a Custom Subdomain URL
-As an autonomous deployment agent, you can configure new subdomains and initiate Let's Encrypt Acme TLS wrappers programmatically by following these three simple steps:
+As an autonomous deployment agent running in a sandbox, you DO NOT need external internet access, `git clone`, or real DNS configurations. The local `server.ts` completely mimics the entire Vortex Cloud Edge native environment.
 
-### 1. Match the Web Ingress Routing
-This full-stack application includes a compiled Express-Vite backend bundle. It listens on host `0.0.0.0` on port `3000`. Set up an Nginx reverse proxy, Cloudflare tunnel, or Caddy runtime mapping incoming traffic from your chosen subdomain (e.g. `yoursite.com`) directly to `127.0.0.1:3000`.
-
-**Nginx Configuration Template:**
-```nginx
-server {
-    listen 80;
-    server_name my-agent-subdomain.yoursite.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
+### 1. Build and Run the App within the Sandbox
+The app contains an Express + Vite bundled backend that binds to port 3000. It inherently intercepts host headers and serves virtual `.ml` domains internally.
+Just run:
+`npm run build && npm run dev`
+(Do not use Nginx, Docker, or external real IP/SSL configuration, as the sandbox restricts this).
 
 ### 2. Issue the Autopilot Domain Allocation Handshake
 Trigger the backend system logic to register, authorize, and sync the subdomain dynamically in the local database by calling the active deployment router endpoint:
