@@ -4079,12 +4079,12 @@ export default function App() {
                         <input
                           type="text"
                           readOnly
-                          value={window.location.origin + "/api/mcp"}
+                          value={window.location.origin + "/api/mcp/sse"}
                           className="flex-1 bg-neutral-950 border border-neutral-800 rounded-l-lg h-10 px-3 text-xs font-mono text-neutral-300 focus:outline-none"
                         />
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(window.location.origin + "/api/mcp");
+                            navigator.clipboard.writeText(window.location.origin + "/api/mcp/sse");
                           }}
                           className="bg-neutral-800 hover:bg-neutral-700 text-white border border-l-0 border-neutral-800 rounded-r-lg px-4 flex items-center justify-center transition"
                           title="Copy URL"

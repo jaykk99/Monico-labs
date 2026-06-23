@@ -1979,29 +1979,53 @@ app.post("/api/projects/:projectId/composio/webhooks/test", (req, res) => {
 // ==========================================
 // MCP PROTOCOL (Model Context Protocol) SERVER API
 // ==========================================
-app.get("/api/mcp", (req, res) => {
-  res.json({
-    mcp_version: "2024-11-05",
-    server_info: {
-      name: "vortex-mcp-server",
-      version: "1.0.0"
-    },
-    capabilities: {
-      tools: {
-        listChanged: true
-      },
-      resources: {
-        listChanged: true,
-        subscribe: true
-      },
-      prompts: {
-        listChanged: true
-      }
-    }
-  });
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { z } from "zod";
+
+const mcpServer = new McpServer({
+  name: "vortex-mcp-server",
+  version: "1.0.0"
 });
 
-app.post("/api/mcp/tools/:tool/call", (req, res) => {
+mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge via MCP.", {
+  html: z.string().optional(),
+  commitMessage: z.string().optional()
+}, async ({ html, commitMessage }) => {
+   const prj = projects[0];
+   if (!prj) return { content: [{ type: "text", text: "Error: No projects in workspace." }] };
+
+   const generatedIdVal = `dep-${generateId()}`;
+   const commitHashHex = Math.random().toString(16).substring(2, 9);
+   
+   const newDep: Deployment = {
+     id: generatedIdVal,
+     projectId: prj.id,
+     status: "ready",
+     previewUrl: `/api/preview/${generatedIdVal}`,
+     createdAt: new Date().toISOString(),
+     commitMessage: commitMessage || "Agent Native MCP Deployment",
+     commitHash: commitHashHex,
+     buildLogs: [
+       "[vortex-agent] Authenticated via MCP Protocol JSON-RPC.",
+       "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.",
+       "[vortex-agent] Native Edge domain assignment provisioned.",
+       "[vortex-agent] Deployment successful! 🎉"
+     ],
+     deployedHtml: html || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>Deployed via MCP Server</h1></div>`
+   };
+
+   deployments.unshift(newDep);
+   saveToCloudDB();
+
+   return {
+     content: [{ type: "text", text: `Deployment successful. Preview routing active for: ${generatedIdVal}` }]
+   };
+});
+
+let mcpTransport: SSEServerTransport | null = null;
+
+const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
    const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
    const configuredKey = process.env.VORTEX_LIVE_API_KEY;
    const hardcodedKey = "vrx_agent_sk_live_999";
@@ -2014,95 +2038,20 @@ app.post("/api/mcp/tools/:tool/call", (req, res) => {
    if (!isValid) {
      return res.status(401).json({ error: "Unauthorized. Missing or invalid MCP API KEY." });
    }
-   
-   const { tool } = req.params;
-   res.json({
-     success: true,
-     tool,
-     result: `Successfully called MCP Tool [${tool}] natively on Vortex Edge.`
-   });
+   next();
+};
+
+app.get("/api/mcp/sse", (req, res) => {
+  console.log("MCP SSE Connection initialized");
+  mcpTransport = new SSEServerTransport("/api/mcp/message", res);
+  mcpServer.connect(mcpTransport);
 });
 
-app.post("/api/mcp", (req, res) => {
-   // A simple fallback endpoint for standard MCP JSON-RPC
-   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
-   const configuredKey = process.env.VORTEX_LIVE_API_KEY;
-   const hardcodedKey = "vrx_agent_sk_live_999";
-   
-   const isValid = authHeader && (
-     String(authHeader).includes(configuredKey as string) || 
-     String(authHeader).includes(hardcodedKey)
-   );
-
-   if (!isValid) {
-     return res.status(401).json({ error: "Unauthorized. Missing or invalid MCP API KEY (VORTEX_LIVE_API_KEY)." });
-   }
-
-   const { method, params, id } = req.body;
-   
-   if (method === "tools/list") {
-      return res.json({
-         jsonrpc: "2.0",
-         id,
-         result: {
-            tools: [
-              {
-                name: "deploy_project",
-                description: "Deploys a project natively on the vortex edge via MCP.",
-                inputSchema: { type: "object", properties: { html: { type: "string" }, commitMessage: { type: "string"} } }
-              }
-            ]
-         }
-      });
-   }
-
-   if (method === "tools/call" && params?.name === "deploy_project") {
-      const prj = projects[0];
-      if (!prj) return res.json({ jsonrpc: "2.0", id, error: { code: -32000, message: "No projects in workspace." }});
-      
-      const generatedIdVal = `dep-${generateId()}`;
-      const commitHashHex = Math.random().toString(16).substring(2, 9);
-      const customHtml = params?.arguments?.html;
-      
-      const newDep: Deployment = {
-        id: generatedIdVal,
-        projectId: prj.id,
-        status: "ready",
-        previewUrl: `${req.protocol}://${req.get("host")}/api/preview/${generatedIdVal}`,
-        createdAt: new Date().toISOString(),
-        commitMessage: params?.arguments?.commitMessage || "Agent Native MCP Deployment",
-        commitHash: commitHashHex,
-        buildLogs: [
-          "[vortex-agent] Authenticated via MCP Protocol JSON-RPC.",
-          "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.",
-          "[vortex-agent] Native Edge domain assignment provisioned.",
-          "[vortex-agent] Deployment successful! 🎉"
-        ],
-        deployedHtml: customHtml || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>Deployed via MCP Server</h1></div>`
-      };
-
-      deployments.unshift(newDep);
-      saveToCloudDB();
-
-      return res.json({
-         jsonrpc: "2.0",
-         id,
-         result: {
-            content: [{
-               type: "text",
-               text: `Deployment successful. URL: ${newDep.previewUrl}`
-            }]
-         }
-      });
-   }
-   
-   return res.json({
-     jsonrpc: "2.0",
-     id,
-     result: {
-       message: `MCP method [${method}] received successfully.`
-     }
-   });
+app.post("/api/mcp/message", mcpAuthMiddleware, async (req, res) => {
+  if (!mcpTransport) {
+    return res.status(400).send("MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
+  }
+  await mcpTransport.handlePostMessage(req, res);
 });
 
 // ==========================================
