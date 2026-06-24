@@ -2681,7 +2681,64 @@ mcpServer.tool("archive_stale_projects", "Move inactive repositories or developm
 });
 
 mcpServer.tool("clear_environment_resources", "De-provision all active sub-services (like databases, gateways, and storage buckets) for a specific environment prior to its deletion.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
-   return { content: [{ type: "text", text: `Success: Safely de-provisioned all active sub-services (including databases, gateways, TLS handshakes, and storage buckets) for environment "${environment}" in project "${projectId}". Cleaned up 4 stale hardware resources successfully.` }] };
+    return { content: [{ type: "text", text: `Success: Safely de-provisioned all active sub-services (including databases, gateways, TLS handshakes, and storage buckets) for environment "${environment}" in project "${projectId}". Cleaned up 4 stale hardware resources successfully.` }] };
+});
+
+// Added missing tools
+mcpServer.tool("run_local_lint", "Run static analysis (e.g., ESLint, Ruff) over the workspace before pushing.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: `Linting project ${projectId}... Passed.` }] };
+});
+
+mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests against newly built preview hashes.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: `Triggered E2E tests for project ${projectId}.` }] };
+});
+
+mcpServer.tool("list_environments", "Get a full inventory of available environments (e.g., Development, Staging, Production) for a specific app.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: JSON.stringify([{ id: "dev", name: "Development" }, { id: "prod", name: "Production" }], null, 2) }] };
+});
+
+mcpServer.tool("terminate_environment", "Cleanly destroy temporary environments spun up for pull requests.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+    return { content: [{ type: "text", text: `Terminated environment ${environment} for project ${projectId}.` }] };
+});
+
+mcpServer.tool("list_ssl_certificates", "Fetch expiration and status of TLS certs for your custom API gateways.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: JSON.stringify([{ domain: "example.com", expires: "2026-12-31" }], null, 2) }] };
+});
+
+mcpServer.tool("provision_ssl_certificate", "Auto-generate and validate new Let's Encrypt certificates for a custom domain.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
+    return { content: [{ type: "text", text: `Provisioned SSL certificate for ${domain}.` }] };
+});
+
+mcpServer.tool("list_audit_logs", "View exact chronological logs of all panel and server operations for regulatory compliance.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: `Audit logs for project ${projectId}.` }] };
+});
+
+mcpServer.tool("rotate_project_secrets", "Force a key rotation for all environment variables associated with a project.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: `Rotated secrets for project ${projectId}.` }] };
+});
+
+mcpServer.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audit, pip check) for known security flaws in dependencies.", { projectId: z.string() }, async ({ projectId }) => {
+    return { content: [{ type: "text", text: `Checked dependencies for project ${projectId}. No vulnerabilities found.` }] };
+});
+
+mcpServer.tool("tail_crash_dump", "Download memory dumps or core traces when serverless functions fail.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
+    return { content: [{ type: "text", text: `Crash dump for deployment ${deploymentId} in project ${projectId}.` }] };
+});
+
+mcpServer.tool("get_live_deployment_url", "Return the live, active URL directly associated with a specific deployed project or branch.", { projectId: z.string(), branch: z.string() }, async ({ projectId, branch }) => {
+    return { content: [{ type: "text", text: `https://${projectId}-${branch}.vortex-edge.app` }] };
+});
+
+mcpServer.tool("sync_jira_issue", "Fetch or update external Agile boards when deployments successfully transition to production.", { issueKey: z.string() }, async ({ issueKey }) => {
+    return { content: [{ type: "text", text: `Synced Jira issue ${issueKey}.` }] };
+});
+
+mcpServer.tool("sync_linear_ticket", "Fetch or update external Agile boards when deployments successfully transition to production.", { ticketId: z.string() }, async ({ ticketId }) => {
+    return { content: [{ type: "text", text: `Synced Linear ticket ${ticketId}.` }] };
+});
+
+mcpServer.tool("create_deployment_notification", "Post build-status updates to Slack or Discord channels.", { projectId: z.string(), message: z.string() }, async ({ projectId, message }) => {
+    return { content: [{ type: "text", text: `Sent notification for project ${projectId}: ${message}` }] };
 });
 
 let transports = new Map<string, SSEServerTransport>();
