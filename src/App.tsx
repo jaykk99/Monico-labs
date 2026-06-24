@@ -973,33 +973,41 @@ export default function App() {
 
     const agentLabel = mcpAgentPlatform === "VortexAutonomousOS" ? "Vortex Autonomous OS v4" : mcpAgentPlatform === "VortexCoreLLM" ? "Vortex Core LLM Gateway" : "Vortex Anycast Routing Engine";
     
-    const logs = [
-      `[07:14:02] [MCP-TUNNEL] Handshake request dispatched to: ${mcpEndpoint}`,
-      `[07:14:02] [MCP-HEADERS] Appending access headers... x-consumer-api-key: ${mcpApiKey.substring(0, 10)}... [VALID]`,
-      `[07:14:03] [MCP-HANDSHAKE] Handshake completed successfully. Bound with session ID mcp_sess_${Math.random().toString(36).substring(4, 10)}`,
-      `[07:14:03] [MCP-SCHEMAS] Querying registered Composio tools list...`,
-      `[07:14:04] [MCP-SCHEMAS] Discovered 18 capabilities (Slack:send_blocks, GitHub:issue_pr_sync, DbTool:run_exec)`,
-      `[07:14:04] [AGENT-SYSTEM] Spawning agent controller [${agentLabel}]...`,
-      `[07:14:04] [AGENT-MODEL] Planning execution parameters for task goals: "${mcpAgentPrompt}"`,
-      `[07:14:05] [AGENT-ROUTE] LLM reasoning selected tool 'Slack:send_blocks' and 'DbTool:run_exec'`,
-      `[07:14:05] [MCP-INVOKE] Dispatching 'DbTool:run_exec' through https://connect.composio.dev/mcp`,
-      `[07:14:06] [MCP-EXEC-SUCCESS] DbTool:run_exec returned payload: { altered_rows: 24, table_target: "vortex_analytics_metrics" }`,
-      `[07:14:06] [MCP-INVOKE] Dispatching 'Slack:send_blocks' with message: "WAF logs scanned. 24 threat tables mapped under ${selectedDefaultModel} default routing."`,
-      `[07:14:07] [MCP-EXEC-SUCCESS] Slack:send_blocks completed 200 OK. Destination channel #engineering pings verified.`,
-      `[07:14:07] [AGENT-SUCCESS] Autonomous run finished safely. All agent goals achieved in ${(2.4 + Math.random() * 1.5).toFixed(2)}s.`
-    ];
-
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < logs.length) {
-        setMcpTestLogs(prev => [...prev, logs[i]]);
-        i++;
-      } else {
-        clearInterval(interval);
-        setIsTestingMcp(false);
-        setMcpTestRunStatus("success");
+    const params = new URLSearchParams({
+      prompt: mcpAgentPrompt,
+      apiKey: mcpApiKey,
+      endpoint: mcpEndpoint,
+      agentLabel: agentLabel
+    });
+    
+    const eventSource = new EventSource(`/api/mcp/run?${params.toString()}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.log) {
+          setMcpTestLogs(prev => [...prev, data.log]);
+        }
+        if (data.status === "success") {
+           setIsTestingMcp(false);
+           setMcpTestRunStatus("success");
+           eventSource.close();
+        } else if (data.status === "failed") {
+           setIsTestingMcp(false);
+           setMcpTestRunStatus("failed");
+           eventSource.close();
+        }
+      } catch (e) {
+         console.error("Error parsing SSE data", e);
       }
-    }, 350);
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error("SSE Error:", error);
+      setIsTestingMcp(false);
+      setMcpTestRunStatus("failed");
+      eventSource.close();
+    };
   };
 
   // --- ADVANCED API KEY GENERATOR HANDLER ---
