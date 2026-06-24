@@ -9,8 +9,8 @@ Vortex is a self-contained, high-performance developer platform, integrated clou
 Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents can connect and execute commands programmatically.
 
 ### 1. Connecting via SSE
-* **SSE Endpoint:** `GET http://localhost:3000/api/mcp/sse`
-* **Message Posting Endpoint:** `POST http://localhost:3000/api/mcp/message`
+* **SSE Endpoint:** `GET http://localhost:3000/api/monico-labs.mcp/sse`
+* **Message Posting Endpoint:** `POST http://localhost:3000/api/monico-labs.mcp`
 * **Authentication Header:**
   ```http
   Authorization: Bearer vrx_agent_sk_live_999
@@ -18,8 +18,8 @@ Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents
   *(Alternatively, use the header `x-api-key: vrx_agent_sk_live_999` or query parameter `?key=vrx_agent_sk_live_999`)*
 
 ### 2. SSE Connection Flow
-1. Open an EventSource connection to `GET http://localhost:3000/api/mcp/sse`.
-2. The server will respond with an SSE connection stream and a custom connection URI for sending messages, or you can POST JSON-RPC payloads directly to `/api/mcp/message?sessionId=<session-id>`.
+1. Open an EventSource connection to `GET http://localhost:3000/api/monico-labs.mcp/sse`.
+2. The server will respond with an SSE connection stream and a custom connection URI for sending messages, or you can POST JSON-RPC payloads directly to `/api/monico-labs.mcp?sessionId=<session-id>`.
 3. Provide the `vrx_agent_sk_live_999` token in the authorization headers of all requests.
 
 ---

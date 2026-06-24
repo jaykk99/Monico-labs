@@ -2749,7 +2749,7 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    const hardcodedKey = "vrx_agent_sk_live_999";
    
    const isValid = authHeader && (
-     String(authHeader).includes(configuredKey as string) || 
+     (configuredKey && String(authHeader).includes(configuredKey)) || 
      String(authHeader).includes(hardcodedKey)
    );
 
@@ -2759,25 +2759,35 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    next();
 };
 
-app.get("/api/mcp/sse", async (req, res) => {
-  console.log("MCP SSE Connection initialized");
-  const transport = new SSEServerTransport("/api/mcp/message", res);
+app.get("/api/monico-labs.mcp/sse", async (req, res) => {
+  const transport = new SSEServerTransport("/api/monico-labs.mcp", res);
+  // The MCP SDK usually doesn't have a public sessionId property on SSEServerTransport constructor
+  // We need to generate or identify the sessionId correctly.
+  // For now, let's look at the transport object structure or generate one.
+  const sessionId = (transport as any).sessionId || `session_${Date.now()}`;
+  
   await mcpServer.connect(transport);
-  transports.set(transport.sessionId, transport);
+  
+  transports.set(sessionId, transport);
   
   res.on("close", () => {
-    transports.delete(transport.sessionId);
+    transports.delete(sessionId);
     transport.close();
   });
 });
 
-app.post("/api/mcp/message", mcpAuthMiddleware, async (req, res) => {
+app.post("/api/monico-labs.mcp", mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
   const transport = transports.get(sessionId);
   if (!transport) {
     return res.status(404).send("Session not found or MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
   }
-  await transport.handlePostMessage(req, res, req.body);
+  try {
+    await transport.handlePostMessage(req, res, req.body);
+  } catch (error) {
+    console.error("Error handling MCP POST message:", error);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 // ==========================================
