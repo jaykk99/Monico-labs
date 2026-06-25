@@ -2,10 +2,10 @@
   "shieldConfigs": {
     "proj-1": {
       "sslMode": "strict",
-      "developmentMode": false,
+      "developmentMode": true,
       "brotli": true,
-      "securityLevel": "high",
-      "totalThreatsBlocked": 4,
+      "securityLevel": "under-attack",
+      "totalThreatsBlocked": 76,
       "wafRules": [
         {
           "id": "rule-1",
@@ -16,9 +16,67 @@
           "isEnabled": true
         }
       ]
+    },
+    "proj-qlil7mbh": {
+      "sslMode": "flexible",
+      "developmentMode": false,
+      "brotli": true,
+      "securityLevel": "medium",
+      "wafRules": [],
+      "totalThreatsBlocked": 29
     }
   },
   "baseIncidents": [
+    {
+      "id": "inc-6beu0avc",
+      "timestamp": "2026-06-25T12:12:53.082Z",
+      "ip": "66.249.79.12",
+      "country": "United States",
+      "flag": "🇺🇸",
+      "threatType": "Automated scraper signature validated",
+      "action": "challenged",
+      "query": "GET /robots.txt checked"
+    },
+    {
+      "id": "inc-loz0zt5h",
+      "timestamp": "2026-06-25T12:03:46.639Z",
+      "ip": "218.10.22.41",
+      "country": "China",
+      "flag": "🇨🇳",
+      "threatType": "Synthetic DDoS Threat / Exploit attempt blocked",
+      "action": "blocked",
+      "query": "GET /api/v1/users SQLi payload parsed"
+    },
+    {
+      "id": "inc-9txlr40q",
+      "timestamp": "2026-06-25T12:03:46.516Z",
+      "ip": "218.10.22.41",
+      "country": "China",
+      "flag": "🇨🇳",
+      "threatType": "Synthetic DDoS Threat / Exploit attempt blocked",
+      "action": "blocked",
+      "query": "GET /api/v1/users SQLi payload parsed"
+    },
+    {
+      "id": "inc-sv4lz3ut",
+      "timestamp": "2026-06-25T12:03:30.472Z",
+      "ip": "195.12.3.4",
+      "country": "United Kingdom",
+      "flag": "🇬🇧",
+      "threatType": "Automated scraper signature validated",
+      "action": "challenged",
+      "query": "GET /assets/index-B7y9A1c.js"
+    },
+    {
+      "id": "inc-i8rz46cm",
+      "timestamp": "2026-06-25T11:59:27.288Z",
+      "ip": "66.249.79.12",
+      "country": "United States",
+      "flag": "🇺🇸",
+      "threatType": "Automated scraper signature validated",
+      "action": "challenged",
+      "query": "GET /robots.txt checked"
+    },
     {
       "id": "inc-1",
       "timestamp": "2026-06-23T02:55:55.985Z",
@@ -135,7 +193,8 @@
           }
         ]
       }
-    ]
+    ],
+    "proj-qlil7mbh": []
   },
   "authConfigs": {
     "proj-1": {
@@ -150,6 +209,19 @@
       "redirectUrls": [
         "https://active-gate.vortex.ml/callback",
         "http://localhost:3000/callback"
+      ]
+    },
+    "proj-qlil7mbh": {
+      "jwtLifespan": 3600,
+      "allowSignup": true,
+      "passwordMinLength": 8,
+      "providers": {
+        "emailPassword": true,
+        "magicLink": false,
+        "otp": false
+      },
+      "redirectUrls": [
+        "http://localhost:3000"
       ]
     }
   },
@@ -176,7 +248,8 @@
         "lastLogin": "2026-06-20T02:00:44Z",
         "status": "suspended"
       }
-    ]
+    ],
+    "proj-qlil7mbh": []
   },
   "apiKeys": {
     "proj-1": [
@@ -188,7 +261,8 @@
         "rateLimit": 120,
         "description": "Main API key for secure communication with Monaco client SDKs & CLI."
       }
-    ]
+    ],
+    "proj-qlil7mbh": []
   },
   "workspaces": [
     {
@@ -226,8 +300,8 @@
         "category": "Messengers",
         "description": "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.",
         "logo": "slack",
-        "isConnected": true,
-        "scopesCount": 12
+        "isConnected": false,
+        "scopesCount": 0
       },
       {
         "id": "conn-github",
@@ -235,8 +309,8 @@
         "category": "Dev Tools",
         "description": "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.",
         "logo": "github",
-        "isConnected": false,
-        "scopesCount": 0
+        "isConnected": true,
+        "scopesCount": 10
       },
       {
         "id": "conn-discord",
@@ -245,7 +319,7 @@
         "description": "Stream alert logs and high severity attack warning alerts into server channels.",
         "logo": "discord",
         "isConnected": false,
-        "scopesCount": 4
+        "scopesCount": 0
       },
       {
         "id": "conn-notion",
@@ -292,7 +366,8 @@
         "isConnected": false,
         "scopesCount": 20
       }
-    ]
+    ],
+    "proj-qlil7mbh": []
   },
   "projects": [
     {
@@ -303,27 +378,29 @@
       "branch": "main",
       "createdAt": "2026-06-21T02:58:55.986Z",
       "activeDeploymentId": "dep-twchs8yg"
+    },
+    {
+      "id": "proj-qlil7mbh",
+      "name": "hhh",
+      "framework": "react",
+      "repo": "jayomer1234/h",
+      "branch": "main",
+      "createdAt": "2026-06-25T12:12:52.878Z",
+      "activeDeploymentId": "dep-31ypeb3z"
     }
   ],
   "envVars": {
-    "proj-1": [
-      {
-        "id": "env-1-1",
-        "key": "VITE_APP_ENV",
-        "value": "production"
-      },
-      {
-        "id": "env-1-2",
-        "key": "CACHE_TTL",
-        "value": "3600"
-      }
-    ]
+    "proj-1": [],
+    "proj-qlil7mbh": []
   },
   "domains": {
     "proj-1": [
       "active-gate.vortex.ml",
-      "y",
-      "my-secured-endorsed.vortex.ml"
+      "my-secured-endorsed.vortex.ml",
+      "hehehe.vortex.ml"
+    ],
+    "proj-qlil7mbh": [
+      "hhh.vortex.ml"
     ]
   },
   "deployments": [
@@ -436,6 +513,27 @@
         "[vortex] Application live on new subdomain: https://my-secured-endorsed.vortex.ml 🎉"
       ],
       "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center select-none\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400\">\n            <span class=\"text-sm font-bold font-mono\">AGENT</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-2xl font-black text-white uppercase tracking-tight font-mono\">MY-SECURED-ENDORSED</h2>\n            <p class=\"text-neutral-500 text-xs text-left leading-relaxed\">This container was successfully provisioned, compiled, and mapped to this subdomain URL by an automated code agent. High capacity ingress tunnels are active.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 rounded-lg flex items-center justify-between\">\n            <span>DNS STATUS: <span class=\"text-emerald-400 font-bold\">PROPAGATED</span></span>\n            <span>PROVIDER: <span class=\"text-amber-400 font-bold\">VORTEX ANYCAST SUBDOMAIN ROUTER</span></span>\n          </div>\n        </div>\n      </div>\n    "
+    },
+    {
+      "id": "dep-31ypeb3z",
+      "projectId": "proj-qlil7mbh",
+      "status": "ready",
+      "previewUrl": "http://localhost:3000/api/preview/dep-31ypeb3z",
+      "createdAt": "2026-06-25T12:12:53.039Z",
+      "commitMessage": "chore: initial bootstrap code compiler sequence",
+      "commitHash": "1f4c516",
+      "buildLogs": [
+        "[vortex] Initializing build workspace to deploy jayomer1234/h...",
+        "[vortex] Found package.json: framework = Vite + React",
+        "[vortex] Executing compilation script: \"npm run build\"",
+        "[compiler] resolving module endpoints and scanning tree-shaking assets...",
+        "[compiler] loading asset router...",
+        "[vortex-cdn] uploading index.html template onto high-performance cache",
+        "[vortex] verifying SSL security boundaries for domain: hhh.vortex.ml",
+        "[vortex] Deployment active in US-East-1, EU-West-2, AP-South-1",
+        "[vortex] Deployment completed successfully! 🎉"
+      ],
+      "deployedHtml": "\n        <div class=\"min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center\">\n          <div class=\"space-y-4\">\n            <div class=\"text-4xl text-blue-400\">⚛️</div>\n            <h2 class=\"text-3xl font-black\">Modern Vite + React Application</h2>\n            <p class=\"text-slate-400 text-sm max-w-md\">Your production React application has compiled and deployed with Vortex Cloud Edge in record time.</p>\n            <div class=\"p-3 bg-slate-800 rounded-lg text-xs font-mono border border-slate-700\">Commit: 1f4c516 - \"chore: initial bootstrap code compiler sequence\"</div>\n          </div>\n        </div>\n      "
     }
   ],
   "serverlessFunctions": [
@@ -508,10 +606,19 @@
         "region": "US-East-1 (N. Virginia)",
         "createdAt": "2026-06-21T02:58:55.986Z"
       }
-    ]
+    ],
+    "proj-qlil7mbh": []
   },
   "scalingConfigs": {
     "proj-1": {
+      "minInstances": 1,
+      "maxInstances": 5,
+      "targetCpuPercent": 70,
+      "maxMemoryOption": "512MB",
+      "concurrencyLimit": 80,
+      "optimizeTreeShaking": true
+    },
+    "proj-qlil7mbh": {
       "minInstances": 1,
       "maxInstances": 5,
       "targetCpuPercent": 70,
@@ -536,6 +643,15 @@
         "isActive": false,
         "variablesCount": 2,
         "clonedFrom": "production"
+      }
+    ],
+    "proj-qlil7mbh": [
+      {
+        "id": "env-prod",
+        "projectId": "proj-qlil7mbh",
+        "name": "production",
+        "isActive": true,
+        "variablesCount": 2
       }
     ]
   },
@@ -576,5 +692,20 @@
       "billing": "None",
       "deployment": "Read"
     }
-  }
+  },
+  "apiGateways": {},
+  "backups": {},
+  "backupPolicies": {},
+  "environments": {
+    "proj-1": [
+      "production",
+      "staging"
+    ]
+  },
+  "gitRepos": {},
+  "sslCertificates": {},
+  "auditTrails": {},
+  "realTimeChannels": {},
+  "storageBuckets": {},
+  "autoScalingConfigs": {}
 }

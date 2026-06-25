@@ -9,6 +9,7 @@ import {
   Plus,
   Eye,
   EyeOff,
+  Edit2,
   Trash2,
   ExternalLink,
   Globe,
@@ -113,6 +114,41 @@ export default function App() {
   const [newProjBranch, setNewProjBranch] = useState("main");
   const [newProjPrompt, setNewProjPrompt] = useState("");
 
+  const [isEditingProject, setIsEditingProject] = useState(false);
+  const [editProjName, setEditProjName] = useState("");
+  const [editProjBranch, setEditProjBranch] = useState("");
+  const [editProjFramework, setEditProjFramework] = useState("");
+
+  const handleEditProject = async () => {
+    if (!currentProject) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editProjName, branch: editProjBranch, framework: editProjFramework })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProjectsList(prev => prev.map(p => p.id === updated.id ? updated : p));
+        setCurrentProject(updated);
+        setIsEditingProject(false);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!currentProject) return;
+    if (!confirm(`Are you sure you want to delete ${currentProject.name}?`)) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}`, { method: "DELETE" });
+      if (res.ok) {
+        const filtered = projectsList.filter(p => p.id !== currentProject.id);
+        setProjectsList(filtered);
+        setCurrentProject(filtered.length > 0 ? filtered[0] : null);
+      }
+    } catch (e) { console.error(e); }
+  };
+
   // Tab 1: Project Details State
   const [projectDeployments, setProjectDeployments] = useState<Deployment[]>([]);
   const [activeDeployment, setActiveDeployment] = useState<Deployment | null>(null);
@@ -138,7 +174,7 @@ export default function App() {
 
   // --- COMPOSIO MCP STATE ---
   const [composioConnectorsList, setComposioConnectorsList] = useState<any[]>([]);
-  const [mcpApiKey, setMcpApiKey] = useState("ck_SYi-RiE1KuAfo-b3fbPS");
+  const [mcpApiKey, setMcpApiKey] = useState("");
   const [mcpEndpoint, setMcpEndpoint] = useState("https://connect.composio.dev/mcp");
   const [isMcpKeyVisible, setIsMcpKeyVisible] = useState(false);
   const [isCopiedConfig, setIsCopiedConfig] = useState(false);
@@ -966,48 +1002,44 @@ export default function App() {
       .catch(err => console.error("Connector toggle error:", err));
   };
 
-  const runAgentMcp = () => {
+  const handleConnectComposio = async () => {
     setIsTestingMcp(true);
     setMcpTestRunStatus("running");
     setMcpTestLogs([]);
-
-    const agentLabel = mcpAgentPlatform === "VortexAutonomousOS" ? "Vortex Autonomous OS v4" : mcpAgentPlatform === "VortexCoreLLM" ? "Vortex Core LLM Gateway" : "Vortex Anycast Routing Engine";
     
-    const params = new URLSearchParams({
-      prompt: mcpAgentPrompt,
-      apiKey: mcpApiKey,
-      endpoint: mcpEndpoint,
-      agentLabel: agentLabel
-    });
-    
-    const eventSource = new EventSource(`/api/mcp/run?${params.toString()}`);
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.log) {
-          setMcpTestLogs(prev => [...prev, data.log]);
-        }
-        if (data.status === "success") {
-           setIsTestingMcp(false);
-           setMcpTestRunStatus("success");
-           eventSource.close();
-        } else if (data.status === "failed") {
-           setIsTestingMcp(false);
-           setMcpTestRunStatus("failed");
-           eventSource.close();
-        }
-      } catch (e) {
-         console.error("Error parsing SSE data", e);
+    try {
+      const res = await fetch("/api/composio/mcp-connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: mcpApiKey, endpoint: mcpEndpoint })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMcpTestRunStatus("success");
+        const tools: any[] = data.tools || [];
+        const uniqueApps = new Set<string>();
+        tools.forEach(t => {
+          const appName = t.name.split('_')[0];
+          if (appName) uniqueApps.add(appName);
+        });
+        
+        const newConnectors = Array.from(uniqueApps).map(app => ({
+          id: `conn-${app}-${Date.now()}`,
+          name: app.charAt(0).toUpperCase() + app.slice(1),
+          logo: app.toLowerCase(),
+          category: "Integration",
+          isConnected: true
+        }));
+        setComposioConnectorsList(newConnectors);
+      } else {
+        setMcpTestRunStatus("failed");
+        setMcpTestLogs([`Rejected: ${data.error}`]);
       }
-    };
-    
-    eventSource.onerror = (error) => {
-      console.error("SSE Error:", error);
-      setIsTestingMcp(false);
+    } catch (e) {
       setMcpTestRunStatus("failed");
-      eventSource.close();
-    };
+      setMcpTestLogs([`Error connecting: ${String(e)}`]);
+    }
+    setIsTestingMcp(false);
   };
 
   // --- ADVANCED API KEY GENERATOR HANDLER ---
@@ -1153,22 +1185,44 @@ export default function App() {
             
             {/* Project List Selector dropdown */}
             {projectsList.length > 0 && currentProject && (
-              <div className="relative">
-                <select
-                  value={currentProject.id}
-                  onChange={(e) => {
-                    const match = projectsList.find((p) => p.id === e.target.value);
-                    if (match) setCurrentProject(match);
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={currentProject.id}
+                    onChange={(e) => {
+                      const match = projectsList.find((p) => p.id === e.target.value);
+                      if (match) setCurrentProject(match);
+                    }}
+                    className="bg-neutral-900 border border-neutral-800 text-neutral-200 text-xs font-mono font-semibold h-9 rounded-lg px-3 pr-8 focus:outline-none focus:border-neutral-700 cursor-pointer appearance-none uppercase animate-in fade-in"
+                  >
+                    {projectsList.map((prj) => (
+                      <option key={prj.id} value={prj.id}>
+                        📁 {prj.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500 text-xs">▼</div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setEditProjName(currentProject.name);
+                    setEditProjBranch(currentProject.branch);
+                    setEditProjFramework(currentProject.framework);
+                    setIsEditingProject(true);
                   }}
-                  className="bg-neutral-900 border border-neutral-800 text-neutral-200 text-xs font-mono font-semibold h-9 rounded-lg px-3 pr-8 focus:outline-none focus:border-neutral-700 cursor-pointer appearance-none uppercase animate-in fade-in"
+                  className="h-9 w-9 flex items-center justify-center bg-neutral-900 border border-neutral-800 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+                  title="Edit Project"
                 >
-                  {projectsList.map((prj) => (
-                    <option key={prj.id} value={prj.id}>
-                      📁 {prj.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500 text-xs">▼</div>
+                  <Edit2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  className="h-9 w-9 flex items-center justify-center bg-neutral-900 border border-neutral-800 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-neutral-800 transition"
+                  title="Delete Project"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             )}
 
@@ -4187,162 +4241,37 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* JSON Display */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 bg-neutral-950 px-4 py-2 border border-neutral-850 rounded-t-lg">
-                        <span>Config File: mcp-servers.json</span>
-                        <button
-                          onClick={() => {
-                            const configText = JSON.stringify({
-                              mcpServers: {
-                                composio: {
-                                  url: mcpEndpoint,
-                                  headers: {
-                                    "x-consumer-api-key": mcpApiKey
-                                  }
-                                }
-                              }
-                            }, null, 2);
-                            navigator.clipboard.writeText(configText);
-                            setIsCopiedConfig(true);
-                            setTimeout(() => setIsCopiedConfig(false), 2000);
-                          }}
-                          className="flex items-center gap-1 hover:text-white transition"
-                        >
-                          {isCopiedConfig ? (
-                            <>
-                              <Check className="h-3 w-3 text-emerald-400" />
-                              <span className="text-emerald-400">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              <span>Copy JSON</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <pre className="bg-neutral-950 border border-t-0 border-neutral-850 p-4 rounded-b-lg text-[11px] font-mono leading-relaxed text-blue-400 overflow-x-auto select-all">
-                        <span className="text-neutral-500">{"{"}</span>{"\n"}
-                        &nbsp;&nbsp;<span className="text-amber-400">"mcpServers"</span><span className="text-neutral-300">:</span> <span className="text-neutral-500">{"{"}</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-400">"composio"</span><span className="text-neutral-300">:</span> <span className="text-neutral-500">{"{"}</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-400">"url"</span><span className="text-neutral-300">:</span> <span className="text-emerald-300">"{mcpEndpoint}"</span><span className="text-neutral-300">,</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-400">"headers"</span><span className="text-neutral-300">:</span> <span className="text-neutral-500">{"{"}</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-400">"x-consumer-api-key"</span><span className="text-neutral-300">:</span> <span className="text-emerald-300">"{mcpApiKey}"</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-neutral-500">{"}"}</span>{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-neutral-500">{"}"}</span>{"\n"}
-                        &nbsp;&nbsp;<span className="text-neutral-500">{"}"}</span>{"\n"}
-                        <span className="text-neutral-500">{"}"}</span>
-                      </pre>
-                    </div>
-                  </div>
-
-                  {/* Card 2: Interactive Autonomous Agent Playbook Engine */}
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-6 shadow-sm">
-                    <div className="border-b border-neutral-800 pb-3 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="p-1.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                          <Sparkles className="h-4 w-4" />
-                        </span>
-                        <h4 className="text-sm font-semibold tracking-wide text-neutral-100 uppercase">
-                          AI Agent Connector Tunnel (Vortex OS, Vortex LLM, Vortex Router)
-                        </h4>
-                      </div>
-                      <p className="text-xs text-neutral-500 font-sans">
-                        Instruct and dispatch autonomous agent brains to execute tools via Composio's MCP server endpoints.
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* Pick Model agent platform */}
-                      <div className="space-y-2">
-                        <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500 font-mono">
-                          Target Agent Platform Controller
-                        </label>
-                        <div className="grid grid-cols-3 gap-2 col-span-3">
-                          {(["VortexAutonomousOS", "VortexCoreLLM", "VortexAnycastRouting"] as const).map((agent) => (
-                            <button
-                              key={agent}
-                              type="button"
-                              onClick={() => setMcpAgentPlatform(agent)}
-                              className={`py-2 px-3 rounded-lg border text-xs font-bold font-mono tracking-wider transition ${
-                                mcpAgentPlatform === agent
-                                  ? "bg-amber-500/10 border-amber-500 text-amber-400"
-                                  : "bg-neutral-950 border-neutral-850 hover:bg-neutral-900 text-neutral-450"
-                              }`}
-                            >
-                              {agent === "VortexAutonomousOS" ? "Vortex OS" : agent === "VortexCoreLLM" ? "Vortex LLM" : "Vortex Router"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Prompt Instruction */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500 font-mono">
-                          Goal Instruction for Agent Tool Calling
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={mcpAgentPrompt}
-                            onChange={(e) => setMcpAgentPrompt(e.target.value)}
-                            placeholder="e.g., Query database pings and trigger active environment deployments"
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-neutral-700 pr-12"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Dispatch Trigger button */}
+                    {/* Connect Button and Status */}
+                    <div className="space-y-4 border-t border-neutral-800 pt-6 mt-4">
                       <button
                         type="button"
-                        onClick={runAgentMcp}
-                        disabled={isTestingMcp || !mcpAgentPrompt.trim()}
-                        className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-neutral-950 font-bold text-xs font-mono h-10 rounded-lg transition tracking-wide shadow flex items-center justify-center gap-2 uppercase"
+                        onClick={handleConnectComposio}
+                        disabled={isTestingMcp || !mcpApiKey.trim()}
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-neutral-950 font-bold text-xs font-mono h-10 rounded-lg transition tracking-wide shadow flex items-center justify-center gap-2 uppercase"
                       >
                         {isTestingMcp ? (
                           <>
                             <RefreshCw className="h-4 w-4 animate-spin" />
-                            AGENT AUTOPILOT BUSY...
+                            CONNECTING...
                           </>
                         ) : (
                           <>
                             <Play className="h-4 w-4 fill-current" />
-                            Connect & Dispatch via {mcpAgentPlatform} agent
+                            CONNECT TO COMPOSIO
                           </>
                         )}
                       </button>
 
-                      {/* MCP Console Live Feed */}
-                      {mcpTestLogs.length > 0 && (
-                        <div className="space-y-2 font-mono animate-in slide-in-from-top-2 duration-200">
-                          <div className="flex items-center justify-between text-[10px] text-neutral-500 bg-neutral-950 px-3 py-1 pb-1.5 border border-b-0 border-neutral-850 rounded-t-lg">
-                            <span>Live MCP handshakes / Tool dispatches</span>
-                            <span className={mcpTestRunStatus === "success" ? "text-emerald-400 font-bold" : "text-amber-400 animate-pulse"}>
-                              ● {mcpTestRunStatus.toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="bg-neutral-950 border border-neutral-850 p-4 rounded-b-lg h-[240px] overflow-y-auto space-y-1.5 text-[10px] leading-relaxed text-neutral-300 custom-scrollbar select-text text-left">
-                            {mcpTestLogs.map((log, index) => {
-                              let logColor = "text-neutral-400";
-                              if (log.includes("[VALID]") || log.includes("[AUTHORIZED]") || log.includes("[SUCCESS]") || log.includes("SUCCESS")) logColor = "text-emerald-400";
-                              if (log.includes("AGENT-SYSTEM") || log.includes("AGENT-MODEL")) logColor = "text-amber-400";
-                              if (log.includes("[MCP-INVOKE]")) logColor = "text-sky-400";
-                              return (
-                                <div key={index} className={`${logColor} hover:bg-white/5 p-0.5 rounded transition`}>
-                                  {log}
-                                </div>
-                              );
-                            })}
-                            {isTestingMcp && (
-                              <div className="flex items-center gap-1.5 text-neutral-600 italic">
-                                <span className="block h-1.5 w-1.5 bg-neutral-500 rounded-full animate-bounce"></span>
-                                <span className="block h-1.5 w-1.5 bg-neutral-500 rounded-full animate-bounce delay-100"></span>
-                                <span className="block h-1.5 w-1.5 bg-neutral-500 rounded-full animate-bounce delay-200"></span>
-                                Wait, invoking remote tool schemas...
-                              </div>
-                            )}
-                          </div>
+                      {mcpTestRunStatus !== "idle" && (
+                        <div className={`p-4 rounded-lg border text-sm font-bold flex items-center gap-2 ${mcpTestRunStatus === "success" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>
+                          <span className={`block h-2 w-2 rounded-full ${mcpTestRunStatus === "success" ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`}></span>
+                          {mcpTestRunStatus === "success" ? "SUCCESS! Connected to Composio MCP Server." : "REJECTED"}
+                        </div>
+                      )}
+                      
+                      {mcpTestLogs.length > 0 && mcpTestRunStatus === "failed" && (
+                        <div className="bg-neutral-950 border border-rose-500/20 p-3 rounded-lg text-rose-300 text-[10px] font-mono whitespace-pre-wrap">
+                          {mcpTestLogs.join('\n')}
                         </div>
                       )}
                     </div>
@@ -4413,7 +4342,7 @@ export default function App() {
 
                             {connector.isConnected && (
                               <div className="flex items-center justify-between border-t border-neutral-900 pt-2 text-[10px] text-neutral-500 font-mono">
-                                <span>Tool scopes: <strong className="text-neutral-300 font-bold">{connector.scopesCount} authorized</strong></span>
+                                <span>Tool scopes: <strong className="text-neutral-300 font-bold">{connector.scopesCount || "Full"} authorized</strong></span>
                                 <span className="text-emerald-400 select-none">● READY</span>
                               </div>
                             )}
@@ -5393,6 +5322,76 @@ pm2 save && pm2 startup`}
                 className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-950 text-xs font-pixel font-bold py-2.5 rounded-lg transition-all border border-neutral-300 shadow-md font-mono tracking-wider text-center cursor-pointer"
               >
                 PROVISION AND DEPLOY EDGE
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditingProject && currentProject && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <h3 className="text-sm font-bold text-neutral-100 uppercase tracking-widest font-mono flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-neutral-400" />
+                Edit Project
+              </h3>
+              <button
+                onClick={() => setIsEditingProject(false)}
+                className="text-neutral-500 hover:text-white transition-all text-xs font-mono hover:bg-neutral-800 p-1 rounded"
+              >
+                CLOSE
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleEditProject(); }} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                  Project Title Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editProjName}
+                  onChange={(e) => setEditProjName(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-neutral-700"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                    Compilation Web Framework
+                  </label>
+                  <select
+                    value={editProjFramework}
+                    onChange={(e) => setEditProjFramework(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-neutral-700"
+                  >
+                    <option value="react">Vite React framework (SPA)</option>
+                    <option value="nextjs">Next.js framework (App Router)</option>
+                    <option value="serverless">Serverless Edge Node Node.js</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                    Target Deploy Branch
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editProjBranch}
+                    onChange={(e) => setEditProjBranch(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-neutral-700 font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-950 text-xs font-pixel font-bold py-2.5 rounded-lg transition-all border border-neutral-300 shadow-md font-mono tracking-wider text-center cursor-pointer"
+              >
+                SAVE CHANGES
               </button>
             </form>
           </div>
