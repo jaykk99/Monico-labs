@@ -359,6 +359,17 @@ let serverlessFunctions: ServerlessFunction[] = [
   }
 ];
 
+let apiGateways: Record<string, { id: string, route: string, target?: string }[]> = {};
+let backups: Record<string, { id: string, date: string, status: string }[]> = {};
+let backupPolicies: Record<string, string> = {};
+let environments: Record<string, string[]> = { "proj-1": ["production", "staging"] };
+let gitRepos: Record<string, { url: string, branch: string, status: string, modified: string[], untracked: string[] }> = {};
+let sslCertificates: Record<string, { domain: string, status: string, expiresAt: string }[]> = {};
+let auditTrails: Record<string, { timestamp: string, action: string, user: string }[]> = {};
+let realTimeChannels: Record<string, { name: string, subscribers: number }[]> = {};
+let storageBuckets: Record<string, { name: string, size: number, files: string[] }[]> = {};
+let autoScalingConfigs: Record<string, number> = {};
+
 let executionLogs: FunctionExecutionLog[] = [
   {
     id: "exec-1",
@@ -2222,8 +2233,8 @@ mcpServer.tool("list_deployments_errors", "Gets deployment errors.", {
    return { content: [{ type: "text", text: JSON.stringify(deps, null, 2) }] };
 });
 
-mcpServer.tool("list_api_gateways", "Lists API Gateways.", {}, async () => {
-   return { content: [{ type: "text", text: JSON.stringify({ routes: [] }, null, 2) }] };
+mcpServer.tool("list_api_gateways", "Lists API Gateways.", { projectId: z.string() }, async ({ projectId }) => {
+   return { content: [{ type: "text", text: JSON.stringify(apiGateways[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("list_waf_rules", "Lists WAF Shield rules for a project.", { projectId: z.string() }, async ({ projectId }) => {
@@ -2284,19 +2295,22 @@ mcpServer.tool("import_git_repo", "Imports a git repo.", { projectId: z.string()
 });
 
 mcpServer.tool("view_git_commits", "Views git commits for a project.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify([{ id: "git-abc12", message: "Initial commit" }], null, 2) }] };
+   return { content: [{ type: "text", text: JSON.stringify(gitRepos[projectId]?.modified || [], null, 2) }] };
 });
 
 mcpServer.tool("list_realtime_channels", "Lists real-time channels.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify([{ name: "global", subscribers: 12 }], null, 2) }] };
+   return { content: [{ type: "text", text: JSON.stringify(realTimeChannels[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("create_storage_bucket", "Creates a storage bucket.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+   if (!storageBuckets[projectId]) storageBuckets[projectId] = [];
+   storageBuckets[projectId].push({ name, size: 0, files: [] });
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Bucket ${name} created` }] };
 });
 
 mcpServer.tool("list_storage_buckets", "Lists storage buckets.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify([{ name: "assets-bucket", size: "12MB" }], null, 2) }] };
+   return { content: [{ type: "text", text: JSON.stringify(storageBuckets[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("list_composio_connectors", "Lists MCP integrations (Composio, etc).", { projectId: z.string() }, async ({ projectId }) => {
@@ -2360,23 +2374,41 @@ mcpServer.tool("list_shield_incidents", "Lists WAF Shield incidents.", { project
 
 // Git Operations
 mcpServer.tool("clone_git_repo", "Pull down an existing repository.", { projectId: z.string(), repoUrl: z.string() }, async ({ projectId, repoUrl }) => {
+   gitRepos[projectId] = { url: repoUrl, branch: "main", status: "cloned", modified: [], untracked: [] };
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Cloned repo ${repoUrl} for project ${projectId}` }] };
 });
 
 mcpServer.tool("create_git_branch", "Create a new development branch.", { projectId: z.string(), branchName: z.string() }, async ({ projectId, branchName }) => {
+   if (gitRepos[projectId]) {
+       gitRepos[projectId].branch = branchName;
+       saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Created branch ${branchName} in project ${projectId}` }] };
 });
 
 mcpServer.tool("get_git_status", "Check untracked or modified files.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify({ modified: [], untracked: ["src/index.js"] }, null, 2) }] };
+   return { content: [{ type: "text", text: JSON.stringify(gitRepos[projectId] || { modified: [], untracked: [] }, null, 2) }] };
 });
 
 mcpServer.tool("push_git_changes", "Deploy code directly via Git.", { projectId: z.string(), message: z.string() }, async ({ projectId, message }) => {
+   if (gitRepos[projectId]) {
+       gitRepos[projectId].modified = [];
+       gitRepos[projectId].untracked = [];
+       saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Pushed changes: ${message}` }] };
 });
 
 // Auth & Self-Hosting
 mcpServer.tool("update_auth_user", "Change user roles or metadata.", { projectId: z.string(), userId: z.string(), role: z.string() }, async ({ projectId, userId, role }) => {
+   if (authUsers[projectId]) {
+       const user = authUsers[projectId].find(u => u.id === userId);
+       if (user) {
+           user.status = role; // Mocking role with status
+           saveToCloudDB();
+       }
+   }
    return { content: [{ type: "text", text: `Updated user ${userId} to role ${role}` }] };
 });
 
@@ -2430,44 +2462,85 @@ mcpServer.tool("get_waf_logs", "Stream traffic logs for security audits.", { pro
 });
 
 mcpServer.tool("toggle_waf_mode", "Switch between 'Block' and 'Count' modes.", { projectId: z.string(), mode: z.string() }, async ({ projectId, mode }) => {
+   if (shieldConfigs[projectId]) {
+       shieldConfigs[projectId].securityLevel = mode as any;
+       saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Toggled WAF to ${mode} mode` }] };
 });
 
 // Real-Time & Storage
 mcpServer.tool("delete_storage_bucket", "Remove an empty or forced storage bucket.", { projectId: z.string(), bucketName: z.string() }, async ({ projectId, bucketName }) => {
+   if (storageBuckets[projectId]) {
+      storageBuckets[projectId] = storageBuckets[projectId].filter(b => b.name !== bucketName);
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Deleted storage bucket ${bucketName}` }] };
 });
 
 mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { projectId: z.string(), bucketName: z.string(), fileName: z.string() }, async ({ projectId, bucketName, fileName }) => {
+   const bucket = (storageBuckets[projectId] || []).find(b => b.name === bucketName);
+   if (bucket) {
+      bucket.files.push(fileName);
+      bucket.size += 1024; // Mock size increment
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Uploaded ${fileName} to bucket ${bucketName}` }] };
 });
 
 mcpServer.tool("delete_storage_file", "Purge specific objects or assets.", { projectId: z.string(), bucketName: z.string(), fileName: z.string() }, async ({ projectId, bucketName, fileName }) => {
+   const bucket = (storageBuckets[projectId] || []).find(b => b.name === bucketName);
+   if (bucket) {
+      bucket.files = bucket.files.filter(f => f !== fileName);
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Deleted ${fileName} from bucket ${bucketName}` }] };
 });
 
 mcpServer.tool("create_realtime_channel", "Initialize a new pub/sub topic.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
+   if (!realTimeChannels[projectId]) realTimeChannels[projectId] = [];
+   realTimeChannels[projectId].push({ name: channelName, subscribers: 0 });
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Created realtime channel ${channelName}` }] };
 });
 
 mcpServer.tool("close_realtime_channel", "Terminate active websocket connections.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
+   if (realTimeChannels[projectId]) {
+      realTimeChannels[projectId] = realTimeChannels[projectId].filter(c => c.name !== channelName);
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Closed realtime channel ${channelName}` }] };
 });
 
 // Networking
 mcpServer.tool("create_api_gateway", "Deploy a new API proxy routing layer.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
+   if (!apiGateways[projectId]) apiGateways[projectId] = [];
+   apiGateways[projectId].push({ id: `gw-${generateId()}`, route });
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Created API gateway for route ${route}` }] };
 });
 
 mcpServer.tool("delete_api_gateway", "Teardown unused routing infrastructure.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
+   if (apiGateways[projectId]) {
+      apiGateways[projectId] = apiGateways[projectId].filter(g => g.route !== route);
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Deleted API gateway route ${route}` }] };
 });
 
 mcpServer.tool("update_gateway_route", "Map new endpoints to backend services.", { projectId: z.string(), route: z.string(), target: z.string() }, async ({ projectId, route, target }) => {
+   const gw = (apiGateways[projectId] || []).find(g => g.route === route);
+   if (gw) {
+      gw.target = target;
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Updated gateway route ${route} to ${target}` }] };
 });
 
 mcpServer.tool("configure_ssl_cert", "Bind custom domains and manage TLS.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
+   if (!sslCertificates[projectId]) sslCertificates[projectId] = [];
+   sslCertificates[projectId].push({ domain, status: "active", expiresAt: new Date(Date.now() + 90*24*60*60*1000).toISOString() });
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Configured SSL cert for domain ${domain}` }] };
 });
 
@@ -2487,18 +2560,26 @@ mcpServer.tool("trigger_connector_action", "Manually test a connected tool's fun
 
 // Backup & Disaster Recovery
 mcpServer.tool("create_backup", "Trigger an immediate snapshot of databases and storage buckets.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: `Triggered backup for project ${projectId}` }] };
+   if (!backups[projectId]) backups[projectId] = [];
+   const backupId = `backup-${generateId()}`;
+   backups[projectId].push({ id: backupId, date: new Date().toISOString(), status: "completed" });
+   saveToCloudDB();
+   return { content: [{ type: "text", text: `Triggered backup for project ${projectId} with id ${backupId}` }] };
 });
 
 mcpServer.tool("restore_backup", "Revert the system state to a specific historical snapshot.", { projectId: z.string(), backupId: z.string() }, async ({ projectId, backupId }) => {
+   const backup = (backups[projectId] || []).find(b => b.id === backupId);
+   if (!backup) return { content: [{ type: "text", text: "Backup not found" }] };
    return { content: [{ type: "text", text: `Restored project ${projectId} to backup ${backupId}` }] };
 });
 
 mcpServer.tool("list_backups", "View available automated and manual recovery points.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify([{ id: "backup-1", date: new Date().toISOString() }], null, 2) }] };
+   return { content: [{ type: "text", text: JSON.stringify(backups[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("configure_backup_policy", "Set retention windows and cron schedules for automated backups.", { projectId: z.string(), schedule: z.string() }, async ({ projectId, schedule }) => {
+   backupPolicies[projectId] = schedule;
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Configured backup policy for project ${projectId} with schedule ${schedule}` }] };
 });
 
@@ -2516,15 +2597,23 @@ mcpServer.tool("get_error_analytics", "Aggregate and count recent system crashes
 });
 
 mcpServer.tool("export_audit_trail", "Generate a compliance CSV/JSON showing who executed what command and when.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: `Exported audit trail for project ${projectId}` }] };
+   return { content: [{ type: "text", text: JSON.stringify(auditTrails[projectId] || [], null, 2) }] };
 });
 
 // CI/CD & Environment Management
 mcpServer.tool("create_environment", "Spin up entirely new isolated stages (e.g., staging, production).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+   if (!environments[projectId]) environments[projectId] = [];
+   if (!environments[projectId].includes(name)) environments[projectId].push(name);
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Created environment ${name} for project ${projectId}` }] };
 });
 
 mcpServer.tool("promote_build", "Seamlessly push configurations and code from staging to production.", { projectId: z.string(), buildId: z.string() }, async ({ projectId, buildId }) => {
+   const dep = deployments.find(d => d.id === buildId);
+   if (dep) {
+      dep.status = "ready";
+      saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Promoted build ${buildId} to production in project ${projectId}` }] };
 });
 
@@ -2542,10 +2631,18 @@ mcpServer.tool("list_env_variables", "View active environment variables (with se
 
 // Scaling & Resource Tuning
 mcpServer.tool("scale_service", "Change the replica count, CPU allocations, or RAM limits for a service.", { projectId: z.string(), replicas: z.number() }, async ({ projectId, replicas }) => {
-   return { content: [{ type: "text", text: `Scaled service in project ${projectId} to ${replicas} replicas` }] };
+   // Assuming replicas config could be in a new state
+   const prj = projects.find(p => p.id === projectId);
+   if (prj) {
+       saveToCloudDB();
+       return { content: [{ type: "text", text: `Scaled service in project ${projectId} to ${replicas} replicas. Current deployment updated.` }] };
+   }
+   return { content: [{ type: "text", text: `Project ${projectId} not found` }] };
 });
 
 mcpServer.tool("configure_autoscaling", "Define rules to scale up or down based on CPU/RAM thresholds.", { projectId: z.string(), maxReplicas: z.number() }, async ({ projectId, maxReplicas }) => {
+   autoScalingConfigs[projectId] = maxReplicas;
+   saveToCloudDB();
    return { content: [{ type: "text", text: `Configured autoscaling in project ${projectId} up to ${maxReplicas} replicas` }] };
 });
 
@@ -2555,10 +2652,23 @@ mcpServer.tool("clear_cache", "Purge edge caches, API gateway caches, or Redis-l
 
 // Team & Workspace Management
 mcpServer.tool("invite_team_member", "Send an invitation email to join the workspace or organization.", { workspaceId: z.string(), email: z.string() }, async ({ workspaceId, email }) => {
+   const ws = workspaces.find(w => w.id === workspaceId);
+   if (ws && !ws.members.find(m => m.email === email)) {
+       ws.members.push({ email, role: "Viewer" as any });
+       saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Invited ${email} to workspace ${workspaceId}` }] };
 });
 
 mcpServer.tool("update_member_role", "Adjust RBAC permissions.", { workspaceId: z.string(), email: z.string(), role: z.string() }, async ({ workspaceId, email, role }) => {
+   const ws = workspaces.find(w => w.id === workspaceId);
+   if (ws) {
+       const member = ws.members.find(m => m.email === email);
+       if (member) {
+           member.role = role as any;
+           saveToCloudDB();
+       }
+   }
    return { content: [{ type: "text", text: `Updated ${email} to role ${role} in workspace ${workspaceId}` }] };
 });
 
@@ -2696,23 +2806,30 @@ mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests a
 });
 
 mcpServer.tool("list_environments", "Get a full inventory of available environments (e.g., Development, Staging, Production) for a specific app.", { projectId: z.string() }, async ({ projectId }) => {
-    return { content: [{ type: "text", text: JSON.stringify([{ id: "dev", name: "Development" }, { id: "prod", name: "Production" }], null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify(environments[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("terminate_environment", "Cleanly destroy temporary environments spun up for pull requests.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+    if (environments[projectId]) {
+        environments[projectId] = environments[projectId].filter(e => e !== environment);
+        saveToCloudDB();
+    }
     return { content: [{ type: "text", text: `Terminated environment ${environment} for project ${projectId}.` }] };
 });
 
 mcpServer.tool("list_ssl_certificates", "Fetch expiration and status of TLS certs for your custom API gateways.", { projectId: z.string() }, async ({ projectId }) => {
-    return { content: [{ type: "text", text: JSON.stringify([{ domain: "example.com", expires: "2026-12-31" }], null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify(sslCertificates[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("provision_ssl_certificate", "Auto-generate and validate new Let's Encrypt certificates for a custom domain.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
+    if (!sslCertificates[projectId]) sslCertificates[projectId] = [];
+    sslCertificates[projectId].push({ domain, status: "provisioning", expiresAt: new Date(Date.now() + 90*24*60*60*1000).toISOString() });
+    saveToCloudDB();
     return { content: [{ type: "text", text: `Provisioned SSL certificate for ${domain}.` }] };
 });
 
 mcpServer.tool("list_audit_logs", "View exact chronological logs of all panel and server operations for regulatory compliance.", { projectId: z.string() }, async ({ projectId }) => {
-    return { content: [{ type: "text", text: `Audit logs for project ${projectId}.` }] };
+    return { content: [{ type: "text", text: JSON.stringify(auditTrails[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("rotate_project_secrets", "Force a key rotation for all environment variables associated with a project.", { projectId: z.string() }, async ({ projectId }) => {
