@@ -303,6 +303,15 @@
       "branch": "main",
       "createdAt": "2026-06-18T14:25:45.389Z",
       "activeDeploymentId": "dep-1"
+    },
+    {
+      "id": "proj-agent-1",
+      "name": "monico-agent",
+      "framework": "react",
+      "repo": "user/monico-agent",
+      "branch": "main",
+      "createdAt": "2026-06-25T05:30:00.000Z",
+      "activeDeploymentId": "dep-agent-1"
     }
   ],
   "envVars": {
@@ -317,11 +326,21 @@
         "key": "CACHE_TTL",
         "value": "3600"
       }
+    ],
+    "proj-agent-1": [
+      {
+        "id": "env-agent-1",
+        "key": "VITE_APP_ENV",
+        "value": "production"
+      }
     ]
   },
   "domains": {
     "proj-1": [
       "active-gate.vortex.ml"
+    ],
+    "proj-agent-1": [
+      "monico-agent.vortex.ml"
     ]
   },
   "deployments": [
@@ -344,6 +363,26 @@
         "[vortex] Deployment successful! 🎉"
       ],
       "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">Æ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Active Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> • Node: US-East-1\n          </div>\n        </div>\n      </div>\n    "
+    },
+    {
+      "id": "dep-agent-1",
+      "projectId": "proj-agent-1",
+      "status": "ready",
+      "previewUrl": "https://monico-agent-dep-agent-1.vortex.ml",
+      "createdAt": "2026-06-25T05:30:00.000Z",
+      "commitMessage": "initial deployment: active security gate & web vitals baseline monitor",
+      "commitHash": "a1b2c3d",
+      "buildLogs": [
+        "[vortex] Initializing build workspace to deploy user/monico-agent...",
+        "[vortex] Loaded 12 dependencies from local lockfile",
+        "[vortex] Running compiler script: \"npm run build\"",
+        "[vite] Compiling TypeScript dynamic types...",
+        "[vite] Bundling assets with Rollup...",
+        "[vite] ✓ compiled in 1.1s",
+        "[vortex] DNS check successful: monico-agent.vortex.ml validates correctly",
+        "[vortex] Deployment successful! 🎉"
+      ],
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">MÅ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Monico Agent Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> • Node: US-West-2\n          </div>\n        </div>\n      </div>\n    "
     }
   ],
   "serverlessFunctions": [

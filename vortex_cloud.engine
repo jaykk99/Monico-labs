@@ -5,7 +5,7 @@
       "developmentMode": true,
       "brotli": true,
       "securityLevel": "under-attack",
-      "totalThreatsBlocked": 76,
+      "totalThreatsBlocked": 80,
       "wafRules": [
         {
           "id": "rule-1",
@@ -24,9 +24,27 @@
       "securityLevel": "medium",
       "wafRules": [],
       "totalThreatsBlocked": 29
+    },
+    "proj-agent-1": {
+      "sslMode": "strict",
+      "developmentMode": false,
+      "brotli": true,
+      "securityLevel": "high",
+      "wafRules": [],
+      "totalThreatsBlocked": 0
     }
   },
   "baseIncidents": [
+    {
+      "id": "inc-pn7ja4fe",
+      "timestamp": "2026-06-25T12:16:50.972Z",
+      "ip": "91.241.13.90",
+      "country": "Russia",
+      "flag": "🇷🇺",
+      "threatType": "Synthetic DDoS Threat / Exploit attempt blocked",
+      "action": "blocked",
+      "query": "GET /admin/db brute force SYN spoof"
+    },
     {
       "id": "inc-6beu0avc",
       "timestamp": "2026-06-25T12:12:53.082Z",
@@ -194,7 +212,8 @@
         ]
       }
     ],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": []
   },
   "authConfigs": {
     "proj-1": {
@@ -223,6 +242,19 @@
       "redirectUrls": [
         "http://localhost:3000"
       ]
+    },
+    "proj-agent-1": {
+      "jwtLifespan": 3600,
+      "allowSignup": true,
+      "passwordMinLength": 8,
+      "providers": {
+        "emailPassword": true,
+        "magicLink": true,
+        "otp": false
+      },
+      "redirectUrls": [
+        "https://monico-agent.vortex.ml/callback"
+      ]
     }
   },
   "authUsers": {
@@ -249,7 +281,8 @@
         "status": "suspended"
       }
     ],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": []
   },
   "apiKeys": {
     "proj-1": [
@@ -262,7 +295,8 @@
         "description": "Main API key for secure communication with Monaco client SDKs & CLI."
       }
     ],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": []
   },
   "workspaces": [
     {
@@ -367,7 +401,8 @@
         "scopesCount": 20
       }
     ],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": []
   },
   "projects": [
     {
@@ -377,7 +412,7 @@
       "repo": "user/active-gate",
       "branch": "main",
       "createdAt": "2026-06-21T02:58:55.986Z",
-      "activeDeploymentId": "dep-twchs8yg"
+      "activeDeploymentId": "dep-gvlrf9yo"
     },
     {
       "id": "proj-qlil7mbh",
@@ -386,24 +421,63 @@
       "repo": "jayomer1234/h",
       "branch": "main",
       "createdAt": "2026-06-25T12:12:52.878Z",
-      "activeDeploymentId": "dep-31ypeb3z"
+      "activeDeploymentId": "dep-2kaue7b9"
+    },
+    {
+      "id": "proj-agent-1",
+      "name": "monico-agent",
+      "framework": "react",
+      "repo": "user/monico-agent",
+      "branch": "main",
+      "createdAt": "2026-06-25T05:30:00.000Z",
+      "activeDeploymentId": "dep-agent-1"
     }
   ],
   "envVars": {
     "proj-1": [],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": [
+      {
+        "id": "env-agent-1",
+        "key": "VITE_APP_ENV",
+        "value": "production"
+      }
+    ]
   },
   "domains": {
     "proj-1": [
       "active-gate.vortex.ml",
-      "my-secured-endorsed.vortex.ml",
-      "hehehe.vortex.ml"
+      "hehehe.vortex.ml",
+      "my-secured-endpoint.vortex.ml"
     ],
     "proj-qlil7mbh": [
       "hhh.vortex.ml"
+    ],
+    "proj-agent-1": [
+      "monico-agent.vortex.ml"
     ]
   },
   "deployments": [
+    {
+      "id": "dep-agent-1",
+      "projectId": "proj-agent-1",
+      "status": "ready",
+      "previewUrl": "https://monico-agent-dep-agent-1.vortex.ml",
+      "createdAt": "2026-06-25T05:30:00.000Z",
+      "commitMessage": "initial deployment: active security gate & web vitals baseline monitor",
+      "commitHash": "a1b2c3d",
+      "buildLogs": [
+        "[vortex] Initializing build workspace to deploy user/monico-agent...",
+        "[vortex] Loaded 12 dependencies from local lockfile",
+        "[vortex] Running compiler script: \"npm run build\"",
+        "[vite] Compiling TypeScript dynamic types...",
+        "[vite] Bundling assets with Rollup...",
+        "[vite] ✓ compiled in 1.1s",
+        "[vortex] DNS check successful: monico-agent.vortex.ml validates correctly",
+        "[vortex] Deployment successful! 🎉"
+      ],
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">MÅ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Monico Agent Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs text-center leading-relaxed\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg flex items-center justify-between\">\n            <span>STATUS: <span class=\"text-emerald-400\">ACTIVE</span></span> • <span>Node: US-West-2</span>\n          </div>\n        </div>\n      </div>\n    "
+    },
     {
       "id": "dep-o8jfz0n8",
       "projectId": "proj-1",
@@ -534,6 +608,47 @@
         "[vortex] Deployment completed successfully! 🎉"
       ],
       "deployedHtml": "\n        <div class=\"min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center\">\n          <div class=\"space-y-4\">\n            <div class=\"text-4xl text-blue-400\">⚛️</div>\n            <h2 class=\"text-3xl font-black\">Modern Vite + React Application</h2>\n            <p class=\"text-slate-400 text-sm max-w-md\">Your production React application has compiled and deployed with Vortex Cloud Edge in record time.</p>\n            <div class=\"p-3 bg-slate-800 rounded-lg text-xs font-mono border border-slate-700\">Commit: 1f4c516 - \"chore: initial bootstrap code compiler sequence\"</div>\n          </div>\n        </div>\n      "
+    },
+    {
+      "id": "dep-2kaue7b9",
+      "projectId": "proj-qlil7mbh",
+      "status": "ready",
+      "previewUrl": "http://localhost:3000/api/preview/dep-2kaue7b9",
+      "createdAt": "2026-06-25T12:14:15.821Z",
+      "commitMessage": "hot-build: deploy code update revision #80",
+      "commitHash": "ba3cc2b",
+      "buildLogs": [
+        "[vortex] Initializing build workspace to deploy jayomer1234/h...",
+        "[vortex] Found package.json: framework = Vite + React",
+        "[vortex] Executing compilation script: \"npm run build\"",
+        "[compiler] resolving module endpoints and scanning tree-shaking assets...",
+        "[compiler] loading asset router...",
+        "[vortex-cdn] uploading index.html template onto high-performance cache",
+        "[vortex] verifying SSL security boundaries for domain: hhh.vortex.ml",
+        "[vortex] Deployment active in US-East-1, EU-West-2, AP-South-1",
+        "[vortex] Deployment completed successfully! 🎉"
+      ],
+      "deployedHtml": "\n        <div class=\"min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center\">\n          <div class=\"space-y-4\">\n            <div class=\"text-4xl text-blue-400\">⚛️</div>\n            <h2 class=\"text-3xl font-black\">Modern Vite + React Application</h2>\n            <p class=\"text-slate-400 text-sm max-w-md\">Your production React application has compiled and deployed with Vortex Cloud Edge in record time.</p>\n            <div class=\"p-3 bg-slate-800 rounded-lg text-xs font-mono border border-slate-700\">Commit: ba3cc2b - \"hot-build: deploy code update revision #80\"</div>\n          </div>\n        </div>\n      "
+    },
+    {
+      "id": "dep-gvlrf9yo",
+      "projectId": "proj-1",
+      "status": "ready",
+      "previewUrl": "https://my-secured-endpoint.vortex.ml",
+      "createdAt": "2026-06-25T12:17:30.908Z",
+      "commitMessage": "[AGENT-AUTOPILOT] Assigned custom website subdomain routing via Vortex Anycast Subdomain Router",
+      "commitHash": "oo07pkl",
+      "buildLogs": [
+        "[vortex] Agent Autopilot Triggered: Subdomain Allocation Request received for my-secured-endpoint.vortex.ml",
+        "[vortex] Syncing custom DNS entries into the independent file-based persistent DB...",
+        "[vortex] DNS A/AAAA records mapped cleanly under Vortex network ingress.",
+        "[vortex] Initiating Let's Encrypt automated challenge validation (HTTP-01)...",
+        "[vortex] ACME verification challenge passed successfully.",
+        "[vortex] Generating SSL/TLS cert for domain my-secured-endpoint.vortex.ml... SUCCESS!",
+        "[vortex] Compiling security bundle and binding Edge Proxy routes... complete!",
+        "[vortex] Application live on new subdomain: https://my-secured-endpoint.vortex.ml 🎉"
+      ],
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center select-none\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400\">\n            <span class=\"text-sm font-bold font-mono\">AGENT</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-2xl font-black text-white uppercase tracking-tight font-mono\">MY-SECURED-ENDPOINT</h2>\n            <p class=\"text-neutral-500 text-xs text-left leading-relaxed\">This container was successfully provisioned, compiled, and mapped to this subdomain URL by an automated code agent. High capacity ingress tunnels are active.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 rounded-lg flex items-center justify-between\">\n            <span>DNS STATUS: <span class=\"text-emerald-400 font-bold\">PROPAGATED</span></span>\n            <span>PROVIDER: <span class=\"text-amber-400 font-bold\">VORTEX ANYCAST SUBDOMAIN ROUTER</span></span>\n          </div>\n        </div>\n      </div>\n    "
     }
   ],
   "serverlessFunctions": [
@@ -607,7 +722,8 @@
         "createdAt": "2026-06-21T02:58:55.986Z"
       }
     ],
-    "proj-qlil7mbh": []
+    "proj-qlil7mbh": [],
+    "proj-agent-1": []
   },
   "scalingConfigs": {
     "proj-1": {
@@ -619,6 +735,14 @@
       "optimizeTreeShaking": true
     },
     "proj-qlil7mbh": {
+      "minInstances": 1,
+      "maxInstances": 5,
+      "targetCpuPercent": 70,
+      "maxMemoryOption": "512MB",
+      "concurrencyLimit": 80,
+      "optimizeTreeShaking": true
+    },
+    "proj-agent-1": {
       "minInstances": 1,
       "maxInstances": 5,
       "targetCpuPercent": 70,
@@ -652,6 +776,15 @@
         "name": "production",
         "isActive": true,
         "variablesCount": 2
+      }
+    ],
+    "proj-agent-1": [
+      {
+        "id": "env-prod",
+        "projectId": "proj-agent-1",
+        "name": "production",
+        "isActive": true,
+        "variablesCount": 1
       }
     ]
   },
@@ -700,6 +833,9 @@
     "proj-1": [
       "production",
       "staging"
+    ],
+    "proj-agent-1": [
+      "production"
     ]
   },
   "gitRepos": {},
