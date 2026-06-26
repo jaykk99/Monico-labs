@@ -48,7 +48,7 @@ import ServerlessPlayground from "./components/ServerlessPlayground";
 
 export default function App() {
   // Navigation & Project tab tracking
-  const [activeTab, setActiveTab] = useState<"projects" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings" | "selfhost" | "errors">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "deployments" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings" | "selfhost" | "errors">("projects");
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -5189,7 +5189,7 @@ pm2 save && pm2 startup`}
                           </div>
                           <div className="col-span-6">
                             <p className="text-neutral-300 text-xs font-mono leading-relaxed bg-red-950/10 p-2 rounded border border-red-900/20 break-all">
-                              {dep.commit || "Unknown Error"} [STATUS: FAILED_BUILD_OR_EXEC]
+                              {dep.commitMessage || "Unknown Error"} [STATUS: FAILED_BUILD_OR_EXEC]
                             </p>
                           </div>
                         </div>

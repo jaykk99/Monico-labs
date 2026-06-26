@@ -510,6 +510,7 @@ let workspacePolicies: Record<string, WorkspacePolicies> = {
 // This database operates entirely independently of third-party platforms like Vortex or Supabase.
 // It persists the entire server-side application state to distributed cloud volume.
 const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
+const LOCAL_DB_FILE_PATH = path.join(process.cwd(), "vortex_local_db.json");
 
 function saveToCloudDB() {
   try {
@@ -545,6 +546,7 @@ function saveToCloudDB() {
       autoScalingConfigs
     };
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(dataToSave, null, 2), "utf-8");
+    fs.writeFileSync(LOCAL_DB_FILE_PATH, JSON.stringify(dataToSave, null, 2), "utf-8");
   } catch (err) {
     console.error("[vortex-db] Write security/data serialization error:", err);
   }
@@ -552,8 +554,17 @@ function saveToCloudDB() {
 
 function loadFromCloudDB() {
   try {
+    let dataLoaded = false;
+    let data = "";
     if (fs.existsSync(DB_FILE_PATH)) {
-      const data = fs.readFileSync(DB_FILE_PATH, "utf-8");
+      data = fs.readFileSync(DB_FILE_PATH, "utf-8");
+      dataLoaded = true;
+    } else if (fs.existsSync(LOCAL_DB_FILE_PATH)) {
+      data = fs.readFileSync(LOCAL_DB_FILE_PATH, "utf-8");
+      dataLoaded = true;
+    }
+
+    if (dataLoaded && data.trim()) {
       const loaded = JSON.parse(data);
       if (loaded.shieldConfigs) shieldConfigs = loaded.shieldConfigs;
       if (loaded.baseIncidents) baseIncidents = loaded.baseIncidents;
@@ -585,6 +596,11 @@ function loadFromCloudDB() {
       if (loaded.storageBuckets) storageBuckets = loaded.storageBuckets;
       if (loaded.autoScalingConfigs) autoScalingConfigs = loaded.autoScalingConfigs;
       console.log("[vortex-db] State restored successfully from cloud storage engine.");
+      
+      // Make sure they are both in sync on load
+      if (!fs.existsSync(DB_FILE_PATH) || !fs.existsSync(LOCAL_DB_FILE_PATH)) {
+        saveToCloudDB();
+      }
     } else {
       saveToCloudDB();
     }
