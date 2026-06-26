@@ -48,7 +48,7 @@ import ServerlessPlayground from "./components/ServerlessPlayground";
 
 export default function App() {
   // Navigation & Project tab tracking
-  const [activeTab, setActiveTab] = useState<"projects" | "deployments" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "teams" | "settings" | "selfhost" | "errors">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "deployments" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "agent" | "teams" | "settings" | "selfhost" | "errors">("projects");
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -183,6 +183,12 @@ export default function App() {
   const [mcpAgentPlatform, setMcpAgentPlatform] = useState<"VortexAutonomousOS" | "VortexCoreLLM" | "VortexAnycastRouting">("VortexAutonomousOS");
   const [mcpAgentPrompt, setMcpAgentPrompt] = useState("Query active database tables and alert slack of table changes");
   const [mcpTestRunStatus, setMcpTestRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+
+  // --- AUTOPILOT CONSOLE AGENT STATES ---
+  const [agentLogs, setAgentLogs] = useState<string[]>([]);
+  const [isRunningAgent, setIsRunningAgent] = useState(false);
+  const [agentRunStatus, setAgentRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [agentPromptText, setAgentPromptText] = useState("Create a new project called PaymentHub, then add a database table named trans_ledger to store payment records.");
 
   // System Metrics
   const [systemMetrics, setSystemMetrics] = useState<{ cpu: number, ram: number }[]>([]);
@@ -1238,7 +1244,7 @@ export default function App() {
 
         {/* Global Navigation Tabs header */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
-          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
+          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "agent", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
             const isActive = activeTab === tab;
             let displayString = tab.toUpperCase();
             if (tab === "projects") displayString = "Deployments";
@@ -1249,6 +1255,7 @@ export default function App() {
             if (tab === "shield") displayString = "WAF Shield";
             if (tab === "mcp") displayString = "MCP Connect";
             if (tab === "composio") displayString = "Integrations";
+            if (tab === "agent") displayString = "Autopilot Console";
             if (tab === "teams") displayString = "Workspaces";
             if (tab === "settings") displayString = "Configs";
             if (tab === "selfhost") displayString = "Self-Host Ops";
@@ -1272,6 +1279,7 @@ export default function App() {
                 {tab === "shield" && <Shield className="h-3.5 w-3.5" />}
                 {tab === "mcp" && <Workflow className="h-3.5 w-3.5 text-emerald-400" />}
                 {tab === "composio" && <Workflow className="h-3.5 w-3.5" />}
+                {tab === "agent" && <Cpu className="h-3.5 w-3.5 text-indigo-400" />}
                 {tab === "teams" && <Terminal className="h-3.5 w-3.5" />}
                 {tab === "settings" && <Settings className="h-3.5 w-3.5" />}
                 {tab === "selfhost" && <Server className="h-3.5 w-3.5" />}
@@ -4349,6 +4357,247 @@ export default function App() {
                           </div>
                         ))
                       )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: VORTEX AUTOPILOT CONSOLE */}
+            {activeTab === "agent" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-200" id="autopilot-dashboard-view">
+                
+                {/* Left side: Console Settings and Prompt Selection (Span 5) */}
+                <div className="lg:col-span-5 space-y-6" id="autopilot-blueprints-card">
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-6 shadow-sm">
+                    <div className="flex items-center gap-2 border-b border-neutral-800 pb-4">
+                      <span className="p-1.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        <Cpu className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h4 className="text-sm font-semibold tracking-wide text-neutral-100 uppercase">
+                          Autopilot Control Desk
+                        </h4>
+                        <p className="text-xs text-neutral-500 font-sans">
+                          Deploy models, configure tables, and secure subdomains.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Model & Platform Selector */}
+                    <div className="space-y-3 font-mono text-xs">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Orchestrator Platform Model</label>
+                        <select
+                          value={mcpAgentPlatform}
+                          onChange={(e) => setMcpAgentPlatform(e.target.value as any)}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded h-9 px-2.5 text-neutral-200 focus:outline-none focus:border-neutral-700 font-mono"
+                        >
+                          <option value="VortexAutonomousOS">Vortex-3.5-AutonomousOS (Gemini Engine)</option>
+                          <option value="VortexCoreLLM">Vortex-3.1-CoreLLM (Durable Reasoning)</option>
+                          <option value="VortexAnycastRouting">Vortex-AnycastRouting (Dynamic Agent Proxy)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Pre-made Task Triggers */}
+                    <div className="space-y-3 font-mono text-xs">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase block">Goal Blueprint Presets</label>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <button
+                          onClick={() => setAgentPromptText("Create a new project named SecurityVault, set the environment variable ENCRYPTION_KEY to 'vortex_secure_token', and then trigger a deployment.")}
+                          disabled={isRunningAgent}
+                          className="text-left p-3 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-850 hover:border-neutral-700 transition group flex flex-col gap-1 cursor-pointer"
+                          id="blueprint-btn-securityvault"
+                        >
+                          <span className="text-[10px] font-bold text-neutral-200 group-hover:text-indigo-400 flex items-center gap-1.5 transition">
+                            <Plus className="h-3 w-3" /> Setup SecurityVault Project
+                          </span>
+                          <span className="text-[10px] text-neutral-500 leading-normal font-sans">
+                            Creates a project, sets its secret token environment variable, and triggers a live container deployment.
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => setAgentPromptText("Block the IP address range 103.24.12.0/22 inside WAF Shield, block user agent 'BadBot/1.0', and then log the event payload.")}
+                          disabled={isRunningAgent}
+                          className="text-left p-3 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-850 hover:border-neutral-700 transition group flex flex-col gap-1 cursor-pointer"
+                          id="blueprint-btn-waf"
+                        >
+                          <span className="text-[10px] font-bold text-neutral-200 group-hover:text-indigo-400 flex items-center gap-1.5 transition">
+                            <Shield className="h-3 w-3" /> WAF Shield IP Range Block
+                          </span>
+                          <span className="text-[10px] text-neutral-500 leading-normal font-sans">
+                            Instructs the agent to register new rules in the Web Application Firewall to block malicious traffic ranges.
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => setAgentPromptText("Create a database table named user_accounts with columns: id (SERIAL), email (VARCHAR), and created_at (TIMESTAMP).")}
+                          disabled={isRunningAgent}
+                          className="text-left p-3 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-850 hover:border-neutral-700 transition group flex flex-col gap-1 cursor-pointer"
+                          id="blueprint-btn-db"
+                        >
+                          <span className="text-[10px] font-bold text-neutral-200 group-hover:text-indigo-400 flex items-center gap-1.5 transition">
+                            <Database className="h-3 w-3" /> Create DB Schema Table
+                          </span>
+                          <span className="text-[10px] text-neutral-500 leading-normal font-sans">
+                            Connects to Monaco DB and registers a schema structure for persistence storage tables.
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Notice Box */}
+                    <div className="p-4 bg-indigo-950/15 border border-indigo-500/10 rounded-xl leading-relaxed text-[10px] font-mono text-indigo-300">
+                      <strong>How it works:</strong> The agent executes in real-time. It interprets your request, parses available MCP tools, runs multi-turn planning on Gemini, and applies changes directly. Once finished, updates will appear in your dashboard instantly.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side: Real-time Terminal and Prompt Execution (Span 7) */}
+                <div className="lg:col-span-7 space-y-6" id="autopilot-terminal-card">
+                  
+                  {/* Execution Terminal */}
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                          <Terminal className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-semibold tracking-wide text-neutral-100 uppercase">
+                            Autonomous Execution Unit
+                          </h4>
+                        </div>
+                      </div>
+
+                      {/* Status indicator */}
+                      <div className="flex items-center gap-2" id="autopilot-status-badge">
+                        {isRunningAgent ? (
+                          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-mono text-[10px] uppercase font-semibold">
+                            <span className="block h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
+                            Agent Running
+                          </div>
+                        ) : agentRunStatus === "success" ? (
+                          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded font-mono text-[10px] uppercase font-semibold">
+                            <span className="block h-2 w-2 rounded-full bg-emerald-400"></span>
+                            Success
+                          </div>
+                        ) : agentRunStatus === "failed" ? (
+                          <div className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2.5 py-1 rounded font-mono text-[10px] uppercase font-semibold">
+                            <span className="block h-2 w-2 rounded-full bg-rose-400">
+                            </span>
+                            Execution Error
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 text-neutral-400 px-2.5 py-1 rounded font-mono text-[10px] uppercase font-semibold">
+                            <span className="block h-2 w-2 rounded-full bg-neutral-600"></span>
+                            Console Idle
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Prompt input Form */}
+                    <div className="space-y-3 font-mono text-xs">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Define Custom Objectives / Instructions</label>
+                        <textarea
+                          rows={3}
+                          value={agentPromptText}
+                          onChange={(e) => setAgentPromptText(e.target.value)}
+                          disabled={isRunningAgent}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded p-3 text-neutral-200 focus:outline-none focus:border-neutral-700 leading-relaxed disabled:opacity-50 font-mono text-xs resize-none"
+                          placeholder="e.g. Create a database table named test_agent_log..."
+                          id="autopilot-custom-prompt-input"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          // SSE Execution trigger function
+                          setIsRunningAgent(true);
+                          setAgentRunStatus("running");
+                          setAgentLogs(["[SYSTEM] Connecting to Vortex Orchestrator Engine..."]);
+
+                          const eventSource = new EventSource(`/api/mcp/run?prompt=${encodeURIComponent(agentPromptText)}&agentPlatform=${mcpAgentPlatform}`);
+
+                          eventSource.onmessage = (event) => {
+                            try {
+                              const data = JSON.parse(event.data);
+                              if (data.type === "log" && data.message) {
+                                setAgentLogs((prev) => [...prev, data.message]);
+                              } else if (data.type === "status" && data.status) {
+                                if (data.status === "success") {
+                                  setAgentRunStatus("success");
+                                  setIsRunningAgent(false);
+                                  eventSource.close();
+                                } else if (data.status === "error") {
+                                  setAgentRunStatus("failed");
+                                  setIsRunningAgent(false);
+                                  eventSource.close();
+                                }
+                              }
+                            } catch (e) {
+                              if (event.data) {
+                                setAgentLogs((prev) => [...prev, event.data]);
+                              }
+                            }
+                          };
+
+                          eventSource.onerror = (err) => {
+                            setAgentLogs((prev) => [...prev, "[SYSTEM-ERROR] Event Source stream disconnected unexpectedly."]);
+                            setAgentRunStatus("failed");
+                            setIsRunningAgent(false);
+                            eventSource.close();
+                          };
+                        }}
+                        disabled={isRunningAgent || !agentPromptText.trim()}
+                        className="w-full h-10 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-bold text-[10px] rounded uppercase tracking-wider transition duration-150 flex items-center justify-center gap-2 cursor-pointer border border-indigo-500/10 shadow"
+                        id="trigger-autopilot-run-btn"
+                      >
+                        {isRunningAgent ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            Autonomous Reasoning Loop in Progress...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Trigger Agent Run Sequence
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Scrolling Terminal Box */}
+                    <div className="space-y-1.5 font-mono text-xs pt-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase">Real-Time Autonomous Agent Logs</label>
+                      <div className="h-[280px] bg-neutral-950 border border-neutral-850 rounded-xl p-4 overflow-y-auto font-mono text-[11px] leading-relaxed select-text flex flex-col gap-1 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent" id="autopilot-logs-terminal">
+                        {agentLogs.length === 0 ? (
+                          <div className="text-neutral-600 h-full flex items-center justify-center text-center italic text-xs">
+                            The terminal is ready. Trigger an agent run above to begin tracing log streams.
+                          </div>
+                        ) : (
+                          agentLogs.map((log, idx) => {
+                            let textColor = "text-neutral-400";
+                            if (log.includes("[SYSTEM]")) textColor = "text-indigo-400 font-semibold";
+                            else if (log.includes("[SYSTEM-ERROR]") || log.includes("[AGENT-ERROR]") || log.includes("[MCP-EXEC-FAILED]")) textColor = "text-rose-400 font-bold";
+                            else if (log.includes("[MCP-SCHEMAS]") || log.includes("[AGENT-MODEL]")) textColor = "text-sky-400";
+                            else if (log.includes("[AGENT-ROUTE]")) textColor = "text-amber-400";
+                            else if (log.includes("[MCP-INVOKE]")) textColor = "text-neutral-300 font-semibold";
+                            else if (log.includes("[MCP-EXEC-SUCCESS]")) textColor = "text-emerald-400 font-bold";
+                            else if (log.includes("[AGENT-SUCCESS]")) textColor = "text-emerald-400 font-bold";
+
+                            return (
+                              <div key={idx} className={`${textColor} whitespace-pre-wrap transition duration-150 animate-in fade-in slide-in-from-bottom-1`}>
+                                {log}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -3181,82 +3181,96 @@ app.get("/api/mcp/run", async (req, res) => {
        parameters: tool.inputSchema as any
      }));
 
-     let modelResp;
-     try {
-       modelResp = await ai.models.generateContent({
-         model: "gemini-2.5-flash",
-         contents: prompt,
-         config: {
-           tools: [{ functionDeclarations: tools }]
-         }
-       });
+     let messages: any[] = [
+       { role: 'user', parts: [{ text: prompt }] }
+     ];
+
+     let loopCount = 0;
+     let completed = false;
+
+     while (loopCount < 8 && !completed) {
+       loopCount++;
+       sendLog(`[AGENT-SYSTEM] Thinking... (Turn ${loopCount}/8)`);
        
-       if (modelResp.functionCalls && modelResp.functionCalls.length > 0) {
-         for (const call of modelResp.functionCalls) {
-            sendLog(`[AGENT-ROUTE] LLM reasoning selected tool '${call.name}'`);
-            
-            // Revert sanitized name back to original tool name
-            const originalTool = toolsResponse.tools.find((t: any) => t.name.replace(/[^a-zA-Z0-9_-]/g, '_') === call.name) || toolsResponse.tools[0];
-            
-            if (usingLocalTools) {
-              sendLog(`[MCP-INVOKE] Dispatching '${call.name}' locally on the native Vortex Server`);
-              try {
-                const localTool = (mcpServer as any)._registeredTools[originalTool.name];
-                if (localTool) {
-                  const result = await localTool.handler(call.args);
-                  sendLog(`[MCP-EXEC-SUCCESS] ${call.name} executed natively. Payload response: ${JSON.stringify(result.content || result)}`);
-                } else {
-                  sendLog(`[MCP-EXEC-FAILED] Local tool handler not found for '${originalTool.name}'`);
-                }
-              } catch (execErr: any) {
-                sendLog(`[MCP-EXEC-FAILED] ${call.name} native execution failed: ${execErr.message}`);
-              }
-            } else {
-              sendLog(`[MCP-INVOKE] Dispatching '${call.name}' through ${endpoint}`);
-              try {
-                const result = await composioMcpRpc('tools/call', {
-                  name: originalTool.name,
-                  arguments: call.args as any
-                });
-                sendLog(`[MCP-EXEC-SUCCESS] ${call.name} returned payload: ${JSON.stringify(result.content).substring(0, 150)}...`);
-              } catch (execErr: any) {
-                sendLog(`[MCP-EXEC-FAILED] ${call.name} execution failed: ${execErr.message}`);
-              }
-            }
+       try {
+         const response = await ai.models.generateContent({
+           model: "gemini-3.5-flash",
+           contents: messages,
+           config: {
+             tools: [{ functionDeclarations: tools }]
+           }
+         });
+
+         const candidate = response.candidates?.[0];
+         const content = candidate?.content;
+         
+         if (content) {
+           messages.push(content);
          }
-       } else {
-         sendLog(`[AGENT-SUCCESS] Agent replied: ${modelResp.text?.substring(0, 200)}...`);
+
+         const functionCalls = response.functionCalls;
+         if (functionCalls && functionCalls.length > 0) {
+           const functionResponseParts: any[] = [];
+           
+           for (const call of functionCalls) {
+              sendLog(`[AGENT-ROUTE] LLM reasoning selected tool '${call.name}'`);
+              
+              // Revert sanitized name back to original tool name
+              const originalTool = toolsResponse.tools.find((t: any) => t.name.replace(/[^a-zA-Z0-9_-]/g, '_') === call.name) || toolsResponse.tools[0];
+              
+              let resultVal: any = null;
+              if (usingLocalTools) {
+                sendLog(`[MCP-INVOKE] Dispatching '${call.name}' locally on the native Vortex Server`);
+                try {
+                  const localTool = (mcpServer as any)._registeredTools[originalTool.name];
+                  if (localTool) {
+                    const result = await localTool.handler(call.args);
+                    resultVal = result;
+                    sendLog(`[MCP-EXEC-SUCCESS] ${call.name} executed natively. Payload response: ${JSON.stringify(result.content || result).substring(0, 200)}...`);
+                  } else {
+                    resultVal = { error: `Local tool handler not found for '${originalTool.name}'` };
+                    sendLog(`[MCP-EXEC-FAILED] Local tool handler not found for '${originalTool.name}'`);
+                  }
+                } catch (execErr: any) {
+                  resultVal = { error: execErr.message };
+                  sendLog(`[MCP-EXEC-FAILED] ${call.name} native execution failed: ${execErr.message}`);
+                }
+              } else {
+                sendLog(`[MCP-INVOKE] Dispatching '${call.name}' through ${endpoint}`);
+                try {
+                  const result = await composioMcpRpc('tools/call', {
+                    name: originalTool.name,
+                    arguments: call.args as any
+                  });
+                  resultVal = result;
+                  sendLog(`[MCP-EXEC-SUCCESS] ${call.name} returned payload: ${JSON.stringify(result.content).substring(0, 150)}...`);
+                } catch (execErr: any) {
+                  resultVal = { error: execErr.message };
+                  sendLog(`[MCP-EXEC-FAILED] ${call.name} execution failed: ${execErr.message}`);
+                }
+              }
+
+              functionResponseParts.push({
+                functionResponse: {
+                  name: call.name,
+                  response: resultVal || { success: true }
+                }
+              });
+           }
+
+           messages.push({
+             role: 'user',
+             parts: functionResponseParts
+           });
+
+         } else {
+           sendLog(`[AGENT-SUCCESS] Agent final reply: ${response.text}`);
+           completed = true;
+         }
+       } catch (geminiErr: any) {
+         sendLog(`[AGENT-ERROR] Turn ${loopCount} Gemini failed: ${geminiErr.message}`);
+         throw geminiErr;
        }
-     } catch(geminiErr: any) {
-        sendLog(`[AGENT-ERROR] Gemini execution failed: ${geminiErr.message}.`);
-        
-        sendLog(`[AGENT-SYSTEM] Running fallback execution for: "${prompt}"`);
-        const lowerPrompt = prompt.toLowerCase();
-        
-        if (lowerPrompt.includes("deploy") || lowerPrompt.includes("project")) {
-           sendLog(`[AGENT-ROUTE] Detected deploy intent in fallback.`);
-           const localTool = (mcpServer as any)._registeredTools["deploy_project"];
-           if (localTool) {
-              sendLog(`[MCP-INVOKE] Dispatching 'deploy_project' fallback natively.`);
-              const resObj = await localTool.handler({
-                 commitMessage: "Autopilot self-healing deployment"
-              });
-              sendLog(`[MCP-EXEC-SUCCESS] deploy_project returned payload: ${JSON.stringify(resObj.content)}`);
-           }
-        } else if (lowerPrompt.includes("table") || lowerPrompt.includes("database") || lowerPrompt.includes("db")) {
-           sendLog(`[AGENT-ROUTE] Detected database intent in fallback.`);
-           const localTool = (mcpServer as any)._registeredTools["create_database_table"];
-           if (localTool) {
-              sendLog(`[MCP-INVOKE] Dispatching 'create_database_table' fallback natively.`);
-              const resObj = await localTool.handler({
-                 projectId: projects[0]?.id || "prj-123",
-                 name: "vortex_security_audit"
-              });
-              sendLog(`[MCP-EXEC-SUCCESS] create_database_table returned: ${JSON.stringify(resObj.content)}`);
-           }
-        } else {
-           sendLog(`[AGENT-SUCCESS] System self-healed and completed current run objectives.`);
-        }
      }
 
      sendLog(`[AGENT-SUCCESS] Autonomous run finished. All achievable agent goals completed.`);
