@@ -2082,6 +2082,7 @@ app.post("/api/projects/:projectId/composio/webhooks/test", (req, res) => {
 // ==========================================
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { z } from "zod";
@@ -2962,7 +2963,9 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
 };
 
 app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpAuthMiddleware, async (req, res) => {
-  const transport = new SSEServerTransport("/api/monico-labs.mcp", res);
+  const isMcpPath = req.path.includes("/api/mcp/sse");
+  const endpointPath = isMcpPath ? "/api/mcp" : "/api/monico-labs.mcp";
+  const transport = new SSEServerTransport(endpointPath, res);
   // The MCP SDK usually doesn't have a public sessionId property on SSEServerTransport constructor
   // We need to generate or identify the sessionId correctly.
   // For now, let's look at the transport object structure or generate one.
@@ -3305,6 +3308,22 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) =
 
 // Connect Express paths with Vite configuration
 async function startServer() {
+  const isStdioMode = process.argv.includes("--stdio") || process.env.MCP_STDIO === "true";
+
+  if (isStdioMode) {
+    // Under STDIO mode, silence console.log/console.info/console.warn to prevent corrupting stdout,
+    // which is used for JSON-RPC communications. Any diagnostic logs should go to stderr.
+    console.log = (...args) => console.error(...args);
+    console.info = (...args) => console.error(...args);
+    console.warn = (...args) => console.error(...args);
+
+    console.error("[vortex-mcp] Starting Vortex MCP server in STDIO mode...");
+    const stdioTransport = new StdioServerTransport();
+    await mcpServer.connect(stdioTransport);
+    console.error("[vortex-mcp] Vortex MCP server connected via STDIO!");
+    return; // Stop here and do not start the Express server
+  }
+
   if (process.env.NODE_ENV !== "production") {
     // Vite Dev Mode setup
     const vite = await createViteServer({
