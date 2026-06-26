@@ -949,9 +949,37 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
     ];
   }
 
+  // Attempt to fetch real code from public GitHub repository first
+  let repoHtml: string | null = null;
+  if (!injectFailure && prj.repo && prj.repo.includes("/")) {
+    const cleanRepo = prj.repo.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
+    logs.push(`[vortex] Connecting to raw.githubusercontent.com to inspect public repo ${cleanRepo}...`);
+    const possiblePaths = [
+      "index.html",
+      "public/index.html",
+      "dist/index.html",
+      "src/index.html",
+      "index.htm"
+    ];
+    for (const p of possiblePaths) {
+      try {
+        const githubRawUrl = `https://raw.githubusercontent.com/${cleanRepo}/${prj.branch || "main"}/${p}`;
+        const fetchRes = await fetch(githubRawUrl);
+        if (fetchRes.ok) {
+          repoHtml = await fetchRes.text();
+          logs.push(`[vortex] Success! Found real production-ready "${p}" file in public repository.`);
+          logs.push(`[vortex] Automatically synchronized code assets and mapped onto high-performance Edge Cache.`);
+          break;
+        }
+      } catch (err) {
+        // ignore and try next path
+      }
+    }
+  }
+
   // Deploy default layout placeholder in memory immediately
-  let activeHtml = "";
-  if (!injectFailure) {
+  let activeHtml = repoHtml || "";
+  if (!activeHtml && !injectFailure) {
     if (prj.framework === "react") {
       activeHtml = `
         <div class="min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center">
@@ -1011,9 +1039,9 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
   deployments.push(newDep);
   saveToCloudDB();
 
-  // If Gemini client exists, trigger AI generation in background to replace placeholder with ultra high-fidelity gorgeous mockup
+  // If Gemini client exists AND we did NOT find a real index.html from GitHub, trigger AI generation in background to replace placeholder
   const ai = getGeminiClient();
-  if (ai && !injectFailure) {
+  if (ai && !injectFailure && !repoHtml) {
     try {
       const extraInstructions = customPrompt ? `\nMake sure the app matches this user description: "${customPrompt}"` : "";
       const prompt = `You are Vortex Compiler. Write a single comprehensive, responsive visual mockup template of a web application built using Tailwind CDN CSS.
@@ -3241,7 +3269,7 @@ app.get("/api/mcp/run", async (req, res) => {
   }
 });
 
-app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) => {
+app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, res) => {
   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
   const configuredKey = process.env.VORTEX_LIVE_API_KEY;
   const hardcodedKey = "vrx_agent_sk_live_999";
@@ -3258,7 +3286,23 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) =
   }
 
   // Find a project to deploy
-  const prj = projects[0];
+  let prj = projects[0];
+  const targetId = req.body?.projectId || req.query?.projectId || req.body?.projectName || req.query?.projectName || req.body?.name || req.body?.repo;
+  if (targetId) {
+    const found = projects.find(p => 
+      p.id === targetId || 
+      p.name.toLowerCase() === String(targetId).toLowerCase() ||
+      p.repo.toLowerCase() === String(targetId).toLowerCase()
+    );
+    if (found) prj = found;
+  } else {
+    // Default to the most recently created project that doesn't have an active deployment yet, so new projects get deployed automatically
+    const undeployed = projects.find(p => !p.activeDeploymentId);
+    if (undeployed) {
+      prj = undeployed;
+    }
+  }
+
   if (!prj) {
     return res.status(500).json({ error: "No projects exist to deploy in the working tree." });
   }
@@ -3267,7 +3311,41 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) =
   const commitHashHex = Math.random().toString(16).substring(2, 9);
   
   // Accept real code payloads from the agent instead of simulation!
-  const customHtml = req.body?.html || req.body?.deployedHtml;
+  let customHtml = req.body?.html || req.body?.deployedHtml;
+  const buildLogs = [
+    "[vortex-agent] Authenticated successfully using Live API key.",
+    `[vortex-agent] Targeted project: ${prj.name} (ID: ${prj.id}, repo: ${prj.repo})`
+  ];
+
+  // If no html is provided, try to fetch index.html from their public repository!
+  if (!customHtml && prj.repo && prj.repo.includes("/")) {
+    const cleanRepo = prj.repo.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
+    buildLogs.push(`[vortex-agent] HTML payload empty. Scanning public GitHub repository ${cleanRepo} for code...`);
+    const possiblePaths = [
+      "index.html",
+      "public/index.html",
+      "dist/index.html",
+      "src/index.html",
+      "index.htm"
+    ];
+    for (const p of possiblePaths) {
+      try {
+        const githubRawUrl = `https://raw.githubusercontent.com/${cleanRepo}/${prj.branch || "main"}/${p}`;
+        const fetchRes = await fetch(githubRawUrl);
+        if (fetchRes.ok) {
+          customHtml = await fetchRes.text();
+          buildLogs.push(`[vortex-agent] Successfully loaded and synchronized "${p}" from GitHub!`);
+          break;
+        }
+      } catch (err) {
+        // ignore and try next path
+      }
+    }
+  }
+
+  buildLogs.push(customHtml ? "[vortex-agent] Using native provided HTML App payload." : "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.");
+  buildLogs.push("[vortex-agent] Native Edge domain assignment provisioned.");
+  buildLogs.push("[vortex-agent] Deployment successful! 🎉");
   
   // Create an automated live deployment
   const newDep: Deployment = {
@@ -3276,15 +3354,9 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) =
     status: "ready",
     previewUrl: `https://${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}.vortex.ml`,
     createdAt: new Date().toISOString(),
-    commitMessage: "Agent Automated Zero-Touch Native Live Deployment",
+    commitMessage: req.body?.commitMessage || "Agent Automated Zero-Touch Native Live Deployment",
     commitHash: commitHashHex,
-    buildLogs: [
-      "[vortex-agent] Authenticated successfully using Live API key.",
-      "[vortex-agent] Analyzing repository edge network payload...",
-      customHtml ? "[vortex-agent] Using native provided HTML App payload." : "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.",
-      "[vortex-agent] Native Edge domain assignment provisioned.",
-      "[vortex-agent] Deployment successful! 🎉"
-    ],
+    buildLogs,
     deployedHtml: customHtml || `
       <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center font-sans p-6 text-center">
         <h2 class="text-3xl font-bold mb-4 text-emerald-400">Agent Deployed to Live Edge! 🚀</h2>
@@ -3295,6 +3367,7 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), (req, res) =
   };
 
   deployments.unshift(newDep);
+  prj.activeDeploymentId = generatedIdVal;
   saveToCloudDB();
 
   res.json({
