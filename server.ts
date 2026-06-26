@@ -2151,14 +2151,16 @@ mcpServer.tool("get_metrics", "Get current real-time metrics of the server.", {}
 
 mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
   name: z.string(),
-  framework: z.string()
-}, async ({ name, framework }) => {
+  framework: z.string(),
+  repo: z.string().optional(),
+  branch: z.string().optional()
+}, async ({ name, framework, repo, branch }) => {
    const newPrj: Project = {
       id: `prj-${generateId()}`,
       name,
       framework,
-      repo: "github.com/vortex-ai/agent-repo",
-      branch: "main",
+      repo: repo || "github.com/vortex-ai/agent-repo",
+      branch: branch || "main",
       createdAt: new Date().toISOString(),
       activeDeploymentId: ""
    };
@@ -3228,9 +3230,11 @@ app.get("/api/mcp/run", async (req, res) => {
 
      sendLog(`[AGENT-SUCCESS] Autonomous run finished. All achievable agent goals completed.`);
      sendStatus("success");
+     res.end();
   } catch (error: any) {
      sendLog(`[ERROR] ${error.message || String(error)}`);
      sendStatus("failed");
+     res.end();
   }
 });
 
