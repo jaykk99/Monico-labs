@@ -183,6 +183,8 @@ export default function App() {
   const [mcpAgentPlatform, setMcpAgentPlatform] = useState<"VortexAutonomousOS" | "VortexCoreLLM" | "VortexAnycastRouting">("VortexAutonomousOS");
   const [mcpAgentPrompt, setMcpAgentPrompt] = useState("Query active database tables and alert slack of table changes");
   const [mcpTestRunStatus, setMcpTestRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [mcpAgentGuideTab, setMcpAgentGuideTab] = useState<"claude" | "cursor" | "custom_sdk">("claude");
+  const [auditLogs, setAuditLogs] = useState<{ timestamp: string; action: string; user: string }[]>([]);
 
   // --- AUTOPILOT CONSOLE AGENT STATES ---
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
@@ -673,6 +675,30 @@ export default function App() {
           });
         })
         .catch((err) => console.error("Error polling database tables:", err));
+
+      // 4. Fetch audit logs (from MCP & 3rd party agent actions)
+      fetch(`/api/projects/${projId}/audit-logs`)
+        .then((res) => res.json())
+        .then((logs) => {
+          setAuditLogs(logs);
+        })
+        .catch((err) => console.error("Error polling audit logs:", err));
+
+      // 5. Fetch env variables
+      fetch(`/api/projects/${projId}/env`)
+        .then((res) => res.json())
+        .then((envs) => {
+          setEnvVarsList(envs);
+        })
+        .catch((err) => console.error("Error polling env vars:", err));
+
+      // 6. Fetch database services
+      fetch(`/api/projects/${projId}/database/services`)
+        .then((res) => res.json())
+        .then((services) => {
+          setDatabaseServices(services);
+        })
+        .catch((err) => console.error("Error polling database services:", err));
     };
 
     const interval = setInterval(fetchActiveProjectUpdates, 3000);
@@ -4177,6 +4203,260 @@ export default function App() {
                          <p className="text-neutral-300 text-sm leading-relaxed">
                            You can provide this URL and API key directly to your AI Agents. The standard server implementation covers everything natively. Just configure your agent's MCP connection with the values shown above.
                          </p>
+                    </div>
+                  </div>
+
+                  {/* 3RD PARTY AGENT INTEGRATION GUIDE */}
+                  <div className="mt-8 border-t border-neutral-800 pt-6 space-y-6">
+                    <div>
+                      <h3 className="text-sm font-bold tracking-wider text-neutral-100 uppercase flex items-center gap-2">
+                        <Terminal className="h-5 w-5 text-emerald-400" />
+                        3rd-Party Agent Integration Guide
+                      </h3>
+                      <p className="text-xs text-neutral-400 mt-1">
+                        Connect external coding models and desktop clients directly to your Vortex MCP server to let them manage your cloud assets.
+                      </p>
+                    </div>
+
+                    <div className="flex border-b border-neutral-800 gap-2 overflow-x-auto">
+                      <button
+                        onClick={() => setMcpAgentGuideTab("claude")}
+                        className={`px-4 py-2 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+                          mcpAgentGuideTab === "claude"
+                            ? "border-emerald-500 text-emerald-400"
+                            : "border-transparent text-neutral-400 hover:text-neutral-200"
+                        }`}
+                      >
+                        Claude Desktop Configuration
+                      </button>
+                      <button
+                        onClick={() => setMcpAgentGuideTab("cursor")}
+                        className={`px-4 py-2 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+                          mcpAgentGuideTab === "cursor"
+                            ? "border-emerald-500 text-emerald-400"
+                            : "border-transparent text-neutral-400 hover:text-neutral-200"
+                        }`}
+                      >
+                        Cursor IDE Integration
+                      </button>
+                      <button
+                        onClick={() => setMcpAgentGuideTab("custom_sdk")}
+                        className={`px-4 py-2 text-xs font-semibold border-b-2 transition whitespace-nowrap ${
+                          mcpAgentGuideTab === "custom_sdk"
+                            ? "border-emerald-500 text-emerald-400"
+                            : "border-transparent text-neutral-400 hover:text-neutral-200"
+                        }`}
+                      >
+                        Custom Node SDK Bridge
+                      </button>
+                    </div>
+
+                    <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 font-sans">
+                      {mcpAgentGuideTab === "claude" && (
+                        <div className="space-y-4">
+                          <p className="text-xs text-neutral-300 leading-relaxed">
+                            To connect your **Claude Desktop Client** to this MCP server, add the following configuration block to your 
+                            <code className="text-emerald-400 bg-neutral-900 px-1 py-0.5 rounded mx-1 font-mono text-[11px]">claude_desktop_config.json</code>:
+                          </p>
+                          <div className="relative">
+                            <pre className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 font-mono text-[11px] text-neutral-200 overflow-x-auto">
+{JSON.stringify({
+  mcpServers: {
+    "vortex-platform": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/inspector",
+        window.location.origin + "/api/mcp/sse"
+      ]
+    }
+  }
+}, null, 2)}
+                            </pre>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(JSON.stringify({
+                                  mcpServers: {
+                                    "vortex-platform": {
+                                      "command": "npx",
+                                      "args": [
+                                        "-y",
+                                        "@modelcontextprotocol/inspector",
+                                        window.location.origin + "/api/mcp/sse"
+                                      ]
+                                    }
+                                  }
+                                }, null, 2));
+                              }}
+                              className="absolute top-3 right-3 bg-neutral-800 hover:bg-neutral-700 text-white p-1.5 rounded transition border border-neutral-750"
+                              title="Copy JSON block"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="text-[11px] text-neutral-500 leading-normal">
+                            💡 **Where is the configuration file?**
+                            <ul className="list-disc list-inside mt-1 space-y-1">
+                              <li>**macOS:** <code className="text-neutral-400">~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+                              <li>**Windows:** <code className="text-neutral-400">%APPDATA%\Claude\claude_desktop_config.json</code></li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+
+                      {mcpAgentGuideTab === "cursor" && (
+                        <div className="space-y-4 text-xs text-neutral-300 leading-relaxed">
+                          <p>
+                            **Cursor** supports direct server-sent events (SSE) connections out of the box! Follow these steps to configure:
+                          </p>
+                          <ol className="list-decimal list-inside space-y-2 pl-1">
+                            <li>Open **Cursor Settings** (gear icon in the top-right corner, or <kbd className="bg-neutral-900 border border-neutral-800 px-1 py-0.5 rounded font-mono text-[10px]">Ctrl/Cmd + ,</kbd>).</li>
+                            <li>Navigate to **Features** on the sidebar, then scroll down to **MCP**.</li>
+                            <li>Click **+ Add New MCP Server**.</li>
+                            <li>Configure the fields as follows:</li>
+                          </ol>
+                          <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 space-y-2 font-mono text-[11px]">
+                            <div className="flex justify-between border-b border-neutral-800 pb-1">
+                              <span className="text-neutral-500">Name:</span>
+                              <span className="text-emerald-400 font-bold">Vortex-Cloud</span>
+                            </div>
+                            <div className="flex justify-between border-b border-neutral-800 pb-1">
+                              <span className="text-neutral-500">Type:</span>
+                              <span className="text-emerald-400 font-bold">SSE</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-neutral-500">URL:</span>
+                              <span className="text-emerald-400 font-bold truncate max-w-[240px] md:max-w-none">{window.location.origin + "/api/mcp/sse"}</span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-neutral-500 leading-normal">
+                            🎉 Once added, Cursor's AI Composer and Chat will immediately gain native tool execution access to list and modify database tables, environments, container configurations, and domains.
+                          </p>
+                        </div>
+                      )}
+
+                      {mcpAgentGuideTab === "custom_sdk" && (
+                        <div className="space-y-4">
+                          <p className="text-xs text-neutral-300 leading-relaxed">
+                            To interact with this server programmatically using the official `@modelcontextprotocol/sdk` in Node.js, establish a standard SSE client stream:
+                          </p>
+                          <div className="relative">
+                            <pre className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 font-mono text-[10px] text-emerald-300 overflow-x-auto leading-normal">
+{`import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const transport = new SSEClientTransport(
+  new URL("${window.location.origin}/api/mcp/sse")
+);
+
+const client = new Client({ name: "my-external-agent", version: "1.0.0" });
+await client.connect(transport);
+
+// List available tools on Vortex Cloud
+const tools = await client.listTools();
+console.log("Connected! Available Vortex tools:", tools);
+
+// Execute tool to create database table
+const result = await client.callTool({
+  name: "create_database_table",
+  arguments: { projectId: "${currentProject?.id || 'proj-1'}", name: "live_customers" }
+});
+console.log(result.content[0].text);`}
+                            </pre>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const transport = new SSEClientTransport(
+  new URL("${window.location.origin}/api/mcp/sse")
+);
+
+const client = new Client({ name: "my-external-agent", version: "1.0.0" });
+await client.connect(transport);
+
+// List available tools on Vortex Cloud
+const tools = await client.listTools();
+console.log("Connected! Available Vortex tools:", tools);
+
+// Execute tool to create database table
+const result = await client.callTool({
+  name: "create_database_table",
+  arguments: { projectId: "${currentProject?.id || 'proj-1'}", name: "live_customers" }
+});
+console.log(result.content[0].text);`);
+                              }}
+                              className="absolute top-3 right-3 bg-neutral-800 hover:bg-neutral-700 text-white p-1.5 rounded transition border border-neutral-750"
+                              title="Copy code"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* LIVE 3RD-PARTY AGENT ACTIVITY LOGS */}
+                  <div className="mt-10 border-t border-neutral-800 pt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold tracking-wider text-neutral-100 uppercase flex items-center gap-2">
+                          <Activity className="h-5 w-5 text-emerald-400" />
+                          Live 3rd-Party Agent Activity
+                        </h3>
+                        <p className="text-xs text-neutral-400 mt-1">
+                          Real-time stream of actions executed by external AI models, IDEs, and developer agents connected via Model Context Protocol.
+                        </p>
+                      </div>
+                      <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-mono uppercase">
+                        SSE Realtime Enabled
+                      </span>
+                    </div>
+
+                    <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden">
+                      {auditLogs.length === 0 ? (
+                        <div className="p-8 text-center text-neutral-500 text-xs">
+                          <div className="h-8 w-8 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto mb-3 text-neutral-400 animate-pulse">
+                            <Workflow className="h-4 w-4" />
+                          </div>
+                          No external agent actions recorded yet. Connect Claude Desktop or Cursor to see live execution history.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-neutral-800 overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-neutral-900 text-neutral-400 font-mono text-[10px] uppercase tracking-wider">
+                              <tr>
+                                <th className="px-4 py-3">Timestamp</th>
+                                <th className="px-4 py-3">Agent User</th>
+                                <th className="px-4 py-3">Action Executed</th>
+                                <th className="px-4 py-3 text-right">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-800">
+                              {auditLogs.slice(0, 15).map((log, idx) => (
+                                <tr key={idx} className="hover:bg-neutral-900/40 transition">
+                                  <td className="px-4 py-3 font-mono text-neutral-400 text-[11px] whitespace-nowrap">
+                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                  </td>
+                                  <td className="px-4 py-3 font-medium text-emerald-400 flex items-center gap-1.5 whitespace-nowrap">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                                    {log.user}
+                                  </td>
+                                  <td className="px-4 py-3 text-neutral-200 font-mono text-[11px]">
+                                    {log.action}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                      Executed
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   </div>
 

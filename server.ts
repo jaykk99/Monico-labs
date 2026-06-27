@@ -658,6 +658,23 @@ app.use((req, res, next) => {
 const FRAMEWORK_BUILD_DURATION_SIM = 3000; // Synthetic compiler block in ms
 
 // Express API Routes
+function logMcpAction(projectId: string, action: string, user: string = "3rd-Party AI Agent") {
+  if (!auditTrails[projectId]) {
+    auditTrails[projectId] = [];
+  }
+  auditTrails[projectId].unshift({
+    timestamp: new Date().toISOString(),
+    action,
+    user
+  });
+  saveToCloudDB();
+}
+
+app.get("/api/projects/:projectId/audit-logs", (req, res) => {
+  const { projectId } = req.params;
+  res.json(auditTrails[projectId] || []);
+});
+
 app.get("/api/projects", (req, res) => {
   res.json(projects);
 });
@@ -2256,7 +2273,7 @@ mcpServer.tool("add_domain", "Allocates or adds a domain to a project.", {
    if (!domains[projectId]) domains[projectId] = [];
    if (!domains[projectId].includes(domainName)) {
       domains[projectId].push(domainName);
-      saveToCloudDB();
+      logMcpAction(projectId, `Added custom domain: ${domainName}`);
    }
    return { content: [{ type: "text", text: `Domain ${domainName} added to project ${projectId}` }] };
 });
@@ -2321,7 +2338,7 @@ mcpServer.tool("create_database_service", "Creates a database service.", {
       createdAt: new Date().toISOString()
    };
    databaseServices[projectId].push(newSvc);
-   saveToCloudDB();
+   logMcpAction(projectId, `Provisioned database service: ${serviceName} (${type})`);
    return { content: [{ type: "text", text: `Database service ${serviceName} created` }] };
 });
 
@@ -2344,8 +2361,7 @@ mcpServer.tool("trigger_deployment", "Triggers a deployment for a project.", {
    };
    deployments.unshift(newDep);
    prj.activeDeploymentId = newDep.id;
-   saveToCloudDB();
-   
+   logMcpAction(projectId, `Triggered container deployment: ${newDep.commitMessage}`);
    return { content: [{ type: "text", text: `Deployment triggered successfully: ${newDep.previewUrl}` }] };
 });
 
@@ -2389,7 +2405,7 @@ mcpServer.tool("add_waf_rule", "Adds a WAF Shield rule.", { projectId: z.string(
       action: action as any,
       isEnabled: true
    });
-   saveToCloudDB();
+   logMcpAction(projectId, `Blocked IP range inside WAF Shield: ${ipRange} (${action})`);
    return { content: [{ type: "text", text: `WAF rule added to project ${projectId}` }] };
 });
 
@@ -2479,7 +2495,7 @@ mcpServer.tool("list_database_tables", "Lists database tables.", { projectId: z.
 mcpServer.tool("create_database_table", "Creates a database table.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!databaseTables[projectId]) databaseTables[projectId] = [];
    databaseTables[projectId].push({ id: `tbl-${generateId()}`, name, columns: [], rows: [] });
-   saveToCloudDB();
+   logMcpAction(projectId, `Created database table: ${name}`);
    return { content: [{ type: "text", text: `Created database table ${name}` }] };
 });
 
@@ -2487,7 +2503,7 @@ mcpServer.tool("insert_database_record", "Inserts a database record.", { project
    const table = (databaseTables[projectId] || []).find(t => t.name === tableName);
    if (!table) return { content: [{ type: "text", text: "Table not found" }] };
    table.rows.push({ id: `row-${generateId()}`, ...JSON.parse(data) });
-   saveToCloudDB();
+   logMcpAction(projectId, `Inserted record into database table: ${tableName}`);
    return { content: [{ type: "text", text: `Inserted record into ${tableName}` }] };
 });
 
@@ -2743,7 +2759,7 @@ mcpServer.tool("promote_build", "Seamlessly push configurations and code from st
 mcpServer.tool("set_env_variable", "Inject runtime secrets or configuration keys into the system.", { projectId: z.string(), key: z.string(), value: z.string() }, async ({ projectId, key, value }) => {
    if (!envVars[projectId]) envVars[projectId] = [];
    envVars[projectId].push({ id: `env-${generateId()}`, key, value });
-   saveToCloudDB();
+   logMcpAction(projectId, `Configured runtime environment variable: ${key}`);
    return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId}` }] };
 });
 
@@ -3011,7 +3027,16 @@ app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpAuthMiddleware, async (
 
 app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
-  const transport = transports.get(sessionId);
+  let transport = transports.get(sessionId);
+  if (!transport && transports.size > 0) {
+    // Robust fallback: If the requested sessionId isn't found (due to quick client reconnects),
+    // map to the latest active transport rather than immediately throwing a 404.
+    const activeIds = Array.from(transports.keys());
+    const fallbackId = activeIds[activeIds.length - 1];
+    transport = transports.get(fallbackId);
+    console.log(`[MCP-ROUTING] Session '${sessionId}' mismatch. Falling back to active session '${fallbackId}'`);
+  }
+  
   if (!transport) {
     return res.status(404).send("Session not found or MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
   }
