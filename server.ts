@@ -262,7 +262,7 @@ let composioConnectors: Record<string, ComposioConnector[]> = {
 
 app.use((req, res, next) => {
   res.on('finish', () => {
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && !req.path.includes('/api/mcp/run') && !req.path.includes('/api/monico-labs.mcp')) {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && !req.path.includes('/api/mcp/run') && !req.path.includes('/api/monioco-labs.mcp')) {
       saveToCloudDB();
     }
   });
@@ -508,7 +508,7 @@ let workspacePolicies: Record<string, WorkspacePolicies> = {
 };
 
 // --- MONACO LABS CUSTOM PERSISTENT DATABASE ENGINE ---
-// This database operates entirely independently of third-party platforms like Vortex or Supabase.
+// This database operates entirely independently of third-party platforms like Monico Labs.
 // It persists the entire server-side application state to distributed cloud volume.
 const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
 const LOCAL_DB_FILE_PATH = path.join(process.cwd(), "vortex_local_db.json");
@@ -3053,9 +3053,9 @@ app.get("/api/mcp/public-url", (req, res) => {
   });
 });
 
-app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
+app.get(["/api/monioco-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const isMcpPath = req.path.includes("/api/mcp/sse");
-  const endpointPath = isMcpPath ? "/api/mcp" : "/api/monico-labs.mcp";
+  const endpointPath = isMcpPath ? "/api/mcp" : "/api/monioco-labs.mcp";
   const transport = new SSEServerTransport(endpointPath, res);
   // The MCP SDK usually doesn't have a public sessionId property on SSEServerTransport constructor
   // We need to generate or identify the sessionId correctly.
@@ -3072,7 +3072,7 @@ app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mc
   });
 });
 
-app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
+app.post(["/api/monioco-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
   let transport = transports.get(sessionId);
   if (!transport && transports.size > 0) {
@@ -3118,7 +3118,7 @@ app.get("/api/mcp/run", async (req, res) => {
   try {
      const isLocal = !endpoint || 
                      endpoint.includes("localhost") || 
-                     endpoint.includes("monico-labs.mcp") || 
+                     endpoint.includes("monioco-labs.mcp") || 
                      endpoint.includes("127.0.0.1") || 
                      endpoint.includes("vortex") || 
                      endpoint.includes("connect.composio.dev") === false;

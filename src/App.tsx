@@ -266,9 +266,9 @@ export default function App() {
     { repo: "jayomer1234/micro-auth-service", framework: "serverless" },
   ];
 
-  // Nested Sub-Tabs & Advanced Feature States for Vortex/Supabase enclaves
+  // Nested Sub-Tabs & Advanced Feature States for Monico Labs enclaves
   const [activeVortexSubTab, setActiveVortexSubTab] = useState<"overview" | "edge-middleware" | "speed-insights" | "domains">("overview");
-  const [activeSupabaseSubTab, setActiveSupabaseSubTab] = useState<"instances" | "tables" | "templates" | "scaling" | "api-docs">("instances");
+  const [activeDatabaseSubTab, setActiveDatabaseSubTab] = useState<"instances" | "tables" | "templates" | "scaling" | "api-docs">("instances");
 
   // Vortex Cloud Expansive states
   const [databaseServices, setDatabaseServices] = useState<any[]>([]);
@@ -302,7 +302,7 @@ export default function App() {
   const [insightsDelay, setInsightsDelay] = useState(1.2);         // Slider scale impacting Image loading / LCP
   const [insightsNoSize, setInsightsNoSize] = useState(false);        // Checkbox triggering layout shifts / CLS
 
-  // Supabase: Storage Buckets
+  // Database: Storage Buckets
   const [storageBuckets, setStorageBuckets] = useState<any[]>([
     { id: "sb-1", name: "public-avatars", isPublic: true, maxFileSize: "10 MB", fileCount: 2, byteSize: "1.4 MB" },
     { id: "sb-2", name: "invoice-vault", isPublic: false, maxFileSize: "5 MB", fileCount: 1, byteSize: "482 KB" }
@@ -320,14 +320,14 @@ export default function App() {
   const [newBucketName, setNewBucketName] = useState("");
   const [newBucketPublic, setNewBucketPublic] = useState(true);
 
-  // Supabase: Realtime Postgres Streams
+  // Database: Realtime Postgres Streams
   const [realtimeChannel, setRealtimeChannel] = useState("*");
   const [realtimeListening, setRealtimeListening] = useState(true);
   const [realtimeEventsLogs, setRealtimeEventsLogs] = useState<any[]>([
     { id: "ev-1", table: "users_profiles", type: "INSERT", schema: "public", timestamp: "19:54:12", payload: { id: "p_81", display_name: "Alice Key", email: "alice@vibe.io", status: "active" } }
   ]);
 
-  // --- Vortex/Supabase Advanced Mock Functions ---
+  // --- Monico Labs Advanced Mock Functions ---
   const handleAddMwRule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMwPath.trim()) return;
@@ -2650,12 +2650,12 @@ export default function App() {
                       Database Explorer <span className="text-neutral-500 font-normal">| Monaco DB Suite</span>
                     </h3>
                     <p className="text-xs text-neutral-505 leading-relaxed max-w-2xl font-mono">
-                      Supabase-compatible server engine including secure Postgres schemas, S3 storage buckets, anycast Realtime networks, and self-publishing API endpoints.
+                      Fully-managed server engine including secure Postgres schemas, S3 storage buckets, anycast Realtime networks, and self-publishing API endpoints.
                     </p>
                   </div>
                 </div>
 
-                {/* Supabase Sub-Tab Bar Navigation */}
+                {/* Database Sub-Tab Bar Navigation */}
                 <div className="flex items-center gap-1.5 border-b border-neutral-900 pb-3 mb-6 font-mono text-[11px] overflow-x-auto no-scrollbar">
                   {[
                     { id: "tables", label: "Schema & Tables", icon: <Database className="h-3.5 w-3.5" /> },
@@ -2665,9 +2665,9 @@ export default function App() {
                   ].map((subt) => (
                     <button
                       key={subt.id}
-                      onClick={() => setActiveSupabaseSubTab(subt.id as any)}
+                      onClick={() => setActiveDatabaseSubTab(subt.id as any)}
                       className={`h-8 px-3 rounded-lg flex items-center gap-1.5 font-bold transition duration-150 border uppercase cursor-pointer ${
-                        activeSupabaseSubTab === subt.id
+                        activeDatabaseSubTab === subt.id
                           ? "bg-neutral-100 border-neutral-300 text-neutral-950 font-black shadow-sm"
                           : "bg-neutral-950/40 border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-850"
                       }`}
@@ -2678,7 +2678,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {activeSupabaseSubTab === "tables" && (
+                {activeDatabaseSubTab === "tables" && (
                   <div className="space-y-6 animate-in fade-in duration-200">
                     <div className="flex justify-between items-center bg-neutral-950/20 border border-neutral-900 p-3.5 rounded-lg text-xs leading-none">
                       <span className="text-neutral-450 uppercase font-bold font-mono">POSTGRES TABLE REGISTRY OPERATIONS</span>
@@ -2928,7 +2928,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeSupabaseSubTab === "instances" && (
+                {activeDatabaseSubTab === "instances" && (
                   <div className="space-y-6 animate-in fade-in duration-200 text-xs font-mono">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-900 pb-4">
                       <div>
@@ -3254,7 +3254,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeSupabaseSubTab === "templates" && (
+                {activeDatabaseSubTab === "templates" && (
                   <div className="space-y-6 animate-in fade-in duration-200 font-mono text-xs">
                     <div>
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
@@ -3333,7 +3333,7 @@ export default function App() {
                                 .then(() => {
                                   alert(`Successfully bootstrapped ${tpl.title}! Database engine spawned, code repository configured and environment variables set.`);
                                   fetchDatabaseServices(currentProject.id);
-                                  setActiveSupabaseSubTab("instances");
+                                  setActiveDatabaseSubTab("instances");
                                 });
                             }}
                             className="bg-neutral-950 border border-neutral-850 hover:bg-neutral-100 hover:text-neutral-950 text-neutral-350 text-[10px] uppercase font-black tracking-wider w-full h-8 px-3 rounded-lg transition duration-150 mt-5 cursor-pointer block leading-none font-mono"
@@ -3346,7 +3346,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeSupabaseSubTab === "scaling" && (
+                {activeDatabaseSubTab === "scaling" && (
                   <div className="space-y-6 animate-in fade-in duration-200 font-mono text-xs">
                     <div>
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
@@ -3534,7 +3534,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeSupabaseSubTab === "api-docs" && (
+                {activeDatabaseSubTab === "api-docs" && (
                   <div className="space-y-6 animate-in fade-in duration-200 font-mono text-xs">
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
@@ -3573,9 +3573,9 @@ export default function App() {
 
                               {/* JS sdk block */}
                               <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-850 space-y-1.5 font-mono text-xs">
-                                <span className="text-[9px] text-neutral-500 uppercase font-black tracking-widest block font-sans">JAVASCRIPT / SUPABASE ISOLATE CLIENT</span>
+                                <span className="text-[9px] text-neutral-500 uppercase font-black tracking-widest block font-sans">JAVASCRIPT / MONICO LABS ISOLATE CLIENT</span>
                                 <pre className="text-[10px] leading-relaxed text-emerald-400 overflow-x-auto whitespace-pre no-scrollbar select-all font-mono">
-{`const { data, error } = await supabase
+{`const { data, error } = await dbClient
   .from('${tbl.name}')
   .select('*')
   .order('created_at', { ascending: false });`}
@@ -4168,18 +4168,18 @@ export default function App() {
                     <div className="space-y-2">
                       <label className="text-xs uppercase font-bold text-neutral-500 font-mono tracking-wider flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        Live MCP Server URL (Browser-Auth Required)
+                        Sandbox MCP Server URL (Browser-Auth Required)
                       </label>
                       <div className="flex">
                         <input
                           type="text"
                           readOnly
-                          value={window.location.origin + "/api/monico-labs.mcp/sse"}
+                          value="https://monioco-labs/api/mcp/sse"
                           className="flex-1 bg-neutral-950 border border-neutral-800 rounded-l-lg h-10 px-3 text-xs font-mono text-neutral-300 focus:outline-none"
                         />
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(window.location.origin + "/api/monico-labs.mcp/sse");
+                            navigator.clipboard.writeText("https://monioco-labs/api/mcp/sse");
                           }}
                           className="bg-neutral-800 hover:bg-neutral-700 text-white border border-l-0 border-neutral-800 rounded-r-lg px-4 flex items-center justify-center transition"
                           title="Copy URL"
@@ -4195,23 +4195,20 @@ export default function App() {
                     <div className="space-y-2">
                       <label className="text-xs uppercase font-bold text-emerald-400 font-mono tracking-wider flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        Public Bypass-Auth MCP Endpoint (Cloud & SaaS Ready)
+                        Global Bypass-Auth MCP Endpoint (Cloud & SaaS Ready)
                       </label>
                       <div className="flex">
                         <input
                           type="text"
                           readOnly
-                          value={publicTunnelUrl || "Starting unauthenticated public tunnel, please wait..."}
+                          value="https://monioco-labs/api/mcp/sse"
                           className="flex-1 bg-neutral-950 border border-emerald-900/40 rounded-l-lg h-10 px-3 text-xs font-mono text-emerald-300 focus:outline-none placeholder-neutral-600"
                         />
                         <button
-                          disabled={!publicTunnelUrl}
                           onClick={() => {
-                            if (publicTunnelUrl) {
-                              navigator.clipboard.writeText(publicTunnelUrl);
-                            }
+                            navigator.clipboard.writeText("https://monioco-labs/api/mcp/sse");
                           }}
-                          className="bg-emerald-950/40 hover:bg-emerald-900/50 disabled:opacity-50 disabled:pointer-events-none text-emerald-400 border border-l-0 border-emerald-900/40 rounded-r-lg px-4 flex items-center justify-center transition"
+                          className="bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border border-l-0 border-emerald-900/40 rounded-r-lg px-4 flex items-center justify-center transition"
                           title="Copy Public Link"
                         >
                           <Copy className="h-4 w-4" />
@@ -4341,10 +4338,7 @@ export default function App() {
                       >
                         ☁️ Cloud & Serverless SaaS
                       </button>
-                    </div>
-
-                    <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 font-sans">
-                      {mcpAgentGuideTab === "claude" && (
+                                {mcpAgentGuideTab === "claude" && (
                         <div className="space-y-4">
                           <p className="text-xs text-neutral-300 leading-relaxed">
                             To connect your **Claude Desktop Client** to this MCP server, add the following configuration block to your 
@@ -4359,7 +4353,7 @@ export default function App() {
       "args": [
         "-y",
         "@modelcontextprotocol/inspector",
-        window.location.origin + "/api/mcp/sse"
+        "https://monioco-labs/api/mcp/sse"
       ]
     }
   }
@@ -4374,7 +4368,7 @@ export default function App() {
                                       "args": [
                                         "-y",
                                         "@modelcontextprotocol/inspector",
-                                        window.location.origin + "/api/mcp/sse"
+                                        "https://monioco-labs/api/mcp/sse"
                                       ]
                                     }
                                   }
@@ -4418,7 +4412,7 @@ export default function App() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-neutral-500">URL:</span>
-                              <span className="text-emerald-400 font-bold truncate max-w-[240px] md:max-w-none">{window.location.origin + "/api/mcp/sse"}</span>
+                              <span className="text-emerald-400 font-bold truncate max-w-[240px] md:max-w-none">https://monioco-labs/api/mcp/sse</span>
                             </div>
                           </div>
                           <p className="text-[11px] text-neutral-500 leading-normal">
@@ -4438,7 +4432,7 @@ export default function App() {
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("${window.location.origin}/api/mcp/sse")
+  new URL("https://monioco-labs/api/mcp/sse")
 );
 
 const client = new Client({ name: "my-external-agent", version: "1.0.0" });
@@ -4461,7 +4455,7 @@ console.log(result.content[0].text);`}
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("${window.location.origin}/api/mcp/sse")
+  new URL("https://monioco-labs/api/mcp/sse")
 );
 
 const client = new Client({ name: "my-external-agent", version: "1.0.0" });
