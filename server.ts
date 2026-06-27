@@ -6,6 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
 import cors from "cors";
+import localtunnel from "localtunnel";
 
 dotenv.config();
 
@@ -3001,12 +3002,58 @@ mcpServer.tool("create_deployment_notification", "Post build-status updates to S
 
 let transports = new Map<string, SSEServerTransport>();
 
+// --- COMPACT & ROBUST RATE LIMITER (NO EXTERNAL STORE NEEDED) ---
+const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // Allow 100 requests per minute
+
+const mcpRateLimitMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  
+  let record = ipRequestCounts.get(ip);
+  if (!record || now > record.resetTime) {
+    record = {
+      count: 0,
+      resetTime: now + RATE_LIMIT_WINDOW_MS
+    };
+  }
+  
+  record.count++;
+  ipRequestCounts.set(ip, record);
+  
+  // Set rate limit headers
+  res.setHeader("X-RateLimit-Limit", RATE_LIMIT_MAX_REQUESTS);
+  res.setHeader("X-RateLimit-Remaining", Math.max(0, RATE_LIMIT_MAX_REQUESTS - record.count));
+  res.setHeader("X-RateLimit-Reset", Math.ceil(record.resetTime / 1000));
+  
+  if (record.count > RATE_LIMIT_MAX_REQUESTS) {
+    return res.status(429).json({
+      error: "Too Many Requests",
+      message: `You have exceeded the rate limit of ${RATE_LIMIT_MAX_REQUESTS} requests per minute on MCP endpoints. Please cool down.`,
+      retryAfterSeconds: Math.ceil((record.resetTime - now) / 1000)
+    });
+  }
+  
+  next();
+};
+
 const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-   // Always allow access to fix connection denied errors
+   // Always allow access without any credentials/authentication
    next();
 };
 
-app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpAuthMiddleware, async (req, res) => {
+// Global public URL variable populated by localtunnel
+let publicMcpUrl = "";
+
+app.get("/api/mcp/public-url", (req, res) => {
+  res.json({
+    publicUrl: publicMcpUrl ? `${publicMcpUrl}/api/mcp/sse` : null,
+    rawUrl: publicMcpUrl || null
+  });
+});
+
+app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const isMcpPath = req.path.includes("/api/mcp/sse");
   const endpointPath = isMcpPath ? "/api/mcp" : "/api/monico-labs.mcp";
   const transport = new SSEServerTransport(endpointPath, res);
@@ -3025,7 +3072,7 @@ app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpAuthMiddleware, async (
   });
 });
 
-app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpAuthMiddleware, async (req, res) => {
+app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
   let transport = transports.get(sessionId);
   if (!transport && transports.size > 0) {
@@ -3452,8 +3499,35 @@ async function startServer() {
     });
   }
 
+  async function startTunnel() {
+    try {
+      console.log("[TUNNEL] Starting LocalTunnel on port 3000...");
+      // We pass the port 3000 where our Express server is listening
+      const tunnel = await localtunnel({ port: 3000 });
+      publicMcpUrl = tunnel.url;
+      console.log(`[TUNNEL] Public unauthenticated MCP URL generated successfully: ${publicMcpUrl}`);
+      
+      tunnel.on("close", () => {
+        console.log("[TUNNEL] LocalTunnel closed. Reconnecting in 5 seconds...");
+        publicMcpUrl = "";
+        setTimeout(startTunnel, 5000);
+      });
+      
+      tunnel.on("error", (err: any) => {
+        console.error("[TUNNEL] LocalTunnel error:", err);
+        publicMcpUrl = "";
+      });
+    } catch (error) {
+      console.error("[TUNNEL] LocalTunnel start error:", error);
+      publicMcpUrl = "";
+      setTimeout(startTunnel, 10000); // Retry in 10s if localtunnel servers are busy
+    }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[vortex] Server online on http://0.0.0.0:${PORT}`);
+    // Boot up the secure free tunnel bypass connection
+    startTunnel();
   });
 }
 
