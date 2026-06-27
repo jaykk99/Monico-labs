@@ -6,7 +6,8 @@ import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
 import cors from "cors";
-import localtunnel from "localtunnel";
+
+import { tunnelmole } from "tunnelmole";
 
 dotenv.config();
 
@@ -3043,14 +3044,24 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    next();
 };
 
-// Global public URL variable populated by localtunnel
+// Global public URL variable populated by tunnelmole
 let publicMcpUrl = "";
 
 app.get("/api/mcp/public-url", (req, res) => {
-  res.json({
-    publicUrl: publicMcpUrl ? `${publicMcpUrl}/api/mcp/sse` : null,
-    rawUrl: publicMcpUrl || null
-  });
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  
+  if (publicMcpUrl) {
+    res.json({
+      publicUrl: `${publicMcpUrl}/api/mcp/sse`,
+      rawUrl: publicMcpUrl
+    });
+  } else {
+    res.json({
+      publicUrl: host ? `${protocol}://${host}/api/mcp/sse` : null,
+      rawUrl: host ? `${protocol}://${host}` : null
+    });
+  }
 });
 
 app.get(["/api/monioco-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
@@ -3501,32 +3512,18 @@ async function startServer() {
 
   async function startTunnel() {
     try {
-      console.log("[TUNNEL] Starting LocalTunnel on port 3000...");
-      // We pass the port 3000 where our Express server is listening
-      const tunnel = await localtunnel({ port: 3000 });
-      publicMcpUrl = tunnel.url;
+      console.log("[TUNNEL] Starting Tunnelmole on port 3000...");
+      publicMcpUrl = await tunnelmole({ port: 3000 });
       console.log(`[TUNNEL] Public unauthenticated MCP URL generated successfully: ${publicMcpUrl}`);
-      
-      tunnel.on("close", () => {
-        console.log("[TUNNEL] LocalTunnel closed. Reconnecting in 5 seconds...");
-        publicMcpUrl = "";
-        setTimeout(startTunnel, 5000);
-      });
-      
-      tunnel.on("error", (err: any) => {
-        console.error("[TUNNEL] LocalTunnel error:", err);
-        publicMcpUrl = "";
-      });
     } catch (error) {
-      console.error("[TUNNEL] LocalTunnel start error:", error);
+      console.error("[TUNNEL] Tunnelmole start error:", error);
       publicMcpUrl = "";
-      setTimeout(startTunnel, 10000); // Retry in 10s if localtunnel servers are busy
+      setTimeout(startTunnel, 10000); // Retry in 10s
     }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[vortex] Server online on http://0.0.0.0:${PORT}`);
-    // Boot up the secure free tunnel bypass connection
     startTunnel();
   });
 }
