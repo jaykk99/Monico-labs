@@ -259,6 +259,17 @@ export default function App() {
   });
   const [isTrafficSpikeActive, setIsTrafficSpikeActive] = useState(false);
 
+  const [mcpPublicUrl, setMcpPublicUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/mcp/public-url")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.publicUrl) setMcpPublicUrl(data.publicUrl);
+      })
+      .catch((err) => console.error("Error fetching public MCP url:", err));
+  }, []);
+
   // Pre-configured Mock templates for Git Import
   const gitTemplates = [
     { repo: "jayomer1234/vue-vibe-dashboard", framework: "react" },
@@ -4174,12 +4185,12 @@ export default function App() {
                         <input
                           type="text"
                           readOnly
-                          value="https://monioco-labs/api/mcp/sse"
+                          value={mcpPublicUrl || window.location.origin + "/api/mcp/sse"}
                           className="flex-1 bg-neutral-950 border border-neutral-800 rounded-l-lg h-10 px-3 text-xs font-mono text-neutral-300 focus:outline-none"
                         />
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText("https://monioco-labs/api/mcp/sse");
+                            navigator.clipboard.writeText(`${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}`);
                           }}
                           className="bg-neutral-800 hover:bg-neutral-700 text-white border border-l-0 border-neutral-800 rounded-r-lg px-4 flex items-center justify-center transition"
                           title="Copy URL"
@@ -4201,12 +4212,12 @@ export default function App() {
                         <input
                           type="text"
                           readOnly
-                          value="https://monioco-labs/api/mcp/sse"
+                          value={mcpPublicUrl || window.location.origin + "/api/mcp/sse"}
                           className="flex-1 bg-neutral-950 border border-emerald-900/40 rounded-l-lg h-10 px-3 text-xs font-mono text-emerald-300 focus:outline-none placeholder-neutral-600"
                         />
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText("https://monioco-labs/api/mcp/sse");
+                            navigator.clipboard.writeText(`${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}`);
                           }}
                           className="bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border border-l-0 border-emerald-900/40 rounded-r-lg px-4 flex items-center justify-center transition"
                           title="Copy Public Link"
@@ -4353,7 +4364,7 @@ export default function App() {
       "args": [
         "-y",
         "@modelcontextprotocol/inspector",
-        "https://monioco-labs/api/mcp/sse"
+        `${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}`
       ]
     }
   }
@@ -4368,7 +4379,7 @@ export default function App() {
                                       "args": [
                                         "-y",
                                         "@modelcontextprotocol/inspector",
-                                        "https://monioco-labs/api/mcp/sse"
+                                        `${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}`
                                       ]
                                     }
                                   }
@@ -4412,7 +4423,7 @@ export default function App() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-neutral-500">URL:</span>
-                              <span className="text-emerald-400 font-bold truncate max-w-[240px] md:max-w-none">https://monioco-labs/api/mcp/sse</span>
+                              <span className="text-emerald-400 font-bold truncate max-w-[240px] md:max-w-none">{mcpPublicUrl || window.location.origin + "/api/mcp/sse"}</span>
                             </div>
                           </div>
                           <p className="text-[11px] text-neutral-500 leading-normal">
@@ -4432,7 +4443,7 @@ export default function App() {
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("https://monioco-labs/api/mcp/sse")
+  new URL("${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}")
 );
 
 const client = new Client({ name: "my-external-agent", version: "1.0.0" });
@@ -4455,7 +4466,7 @@ console.log(result.content[0].text);`}
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("https://monioco-labs/api/mcp/sse")
+  new URL("${mcpPublicUrl || window.location.origin + "/api/mcp/sse"}")
 );
 
 const client = new Client({ name: "my-external-agent", version: "1.0.0" });
