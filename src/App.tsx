@@ -240,9 +240,9 @@ export default function App() {
   const [modelTemperature, setModelTemperature] = useState(0.7);
   const [modelMaxTokens, setModelMaxTokens] = useState(4096);
   const [modelEngineFallback, setModelEngineFallback] = useState(true);
-  const [workspaceSureThingApiKey, setWorkspaceSureThingApiKey] = useState("vx_sk_948a28f8ac2e948194ff71");
-  const [workspaceGrokApiKey, setWorkspaceGrokApiKey] = useState("vx_gate_f893da82fc2d8a4de012c8");
-  const [workspaceBase44ApiKey, setWorkspaceBase44ApiKey] = useState("vx_router_a2b8e9ccf0e21a8d052062");
+  const [workspaceSureThingApiKey, setWorkspaceSureThingApiKey] = useState("");
+  const [workspaceGrokApiKey, setWorkspaceGrokApiKey] = useState("");
+  const [workspaceBase44ApiKey, setWorkspaceBase44ApiKey] = useState("");
   const [isSavingAdvancedModelSettings, setIsSavingAdvancedModelSettings] = useState(false);
   const [showAdvancedModelSaveMsg, setShowAdvancedModelSaveMsg] = useState(false);
 
@@ -270,12 +270,8 @@ export default function App() {
       .catch((err) => console.error("Error fetching public MCP url:", err));
   }, []);
 
-  // Pre-configured Mock templates for Git Import
-  const gitTemplates = [
-    { repo: "jayomer1234/vue-vibe-dashboard", framework: "react" },
-    { repo: "jayomer1234/blogging-next-cms", framework: "nextjs" },
-    { repo: "jayomer1234/micro-auth-service", framework: "serverless" },
-  ];
+  // Pre-configured templates for Git Import (Start empty)
+  const gitTemplates: any[] = [];
 
   // Nested Sub-Tabs & Advanced Feature States for Monico Labs enclaves
   const [activeVortexSubTab, setActiveVortexSubTab] = useState<"overview" | "edge-middleware" | "speed-insights" | "domains">("overview");
@@ -298,45 +294,28 @@ export default function App() {
   const [newDbRegion, setNewDbRegion] = useState("US-East-1 (N. Virginia)");
 
   // Vortex: Edge Middleware Rules
-  const [middlewareRules, setMiddlewareRules] = useState<any[]>([
-    { id: "mw-1", path: "/old-blog/*", action: "redirect", target: "/blog/$1", status: "301", active: true },
-    { id: "mw-2", path: "/api/*", action: "inject_header", target: "x-edge-geo: {country-code}", status: "200", active: true },
-    { id: "mw-3", path: "/admin/*", action: "block_agent", target: "bad-bot-crawler", status: "403", active: true }
-  ]);
+  const [middlewareRules, setMiddlewareRules] = useState<any[]>([]);
   const [newMwPath, setNewMwPath] = useState("");
   const [newMwAction, setNewMwAction] = useState("redirect");
   const [newMwTarget, setNewMwTarget] = useState("");
   const [newMwStatus, setNewMwStatus] = useState("301");
 
   // Vortex: Speed Insights Controls
-  const [insightsComplexity, setInsightsComplexity] = useState(30); // Interactive scale impacting JS INP/FCP metrics
-  const [insightsDelay, setInsightsDelay] = useState(1.2);         // Slider scale impacting Image loading / LCP
-  const [insightsNoSize, setInsightsNoSize] = useState(false);        // Checkbox triggering layout shifts / CLS
+  const [insightsComplexity, setInsightsComplexity] = useState(0); 
+  const [insightsDelay, setInsightsDelay] = useState(0);         
+  const [insightsNoSize, setInsightsNoSize] = useState(false);        
 
   // Database: Storage Buckets
-  const [storageBuckets, setStorageBuckets] = useState<any[]>([
-    { id: "sb-1", name: "public-avatars", isPublic: true, maxFileSize: "10 MB", fileCount: 2, byteSize: "1.4 MB" },
-    { id: "sb-2", name: "invoice-vault", isPublic: false, maxFileSize: "5 MB", fileCount: 1, byteSize: "482 KB" }
-  ]);
-  const [selectedStorageBucket, setSelectedStorageBucket] = useState<string>("public-avatars");
-  const [storageFiles, setStorageFiles] = useState<any>({
-    "public-avatars": [
-      { id: "f-1", name: "john-profile.jpg", size: "142 KB", type: "image/jpeg", lastModified: "2026-06-18 14:24" },
-      { id: "f-2", name: "company-logo-highres.png", size: "1.2 MB", type: "image/png", lastModified: "2026-06-19 11:05" }
-    ],
-    "invoice-vault": [
-      { id: "f-3", name: "receipt_inv_9821.pdf", size: "482 KB", type: "application/pdf", lastModified: "2026-05-12 09:15" }
-    ]
-  });
+  const [storageBuckets, setStorageBuckets] = useState<any[]>([]);
+  const [selectedStorageBucket, setSelectedStorageBucket] = useState<string>("");
+  const [storageFiles, setStorageFiles] = useState<any>({});
   const [newBucketName, setNewBucketName] = useState("");
   const [newBucketPublic, setNewBucketPublic] = useState(true);
 
   // Database: Realtime Postgres Streams
   const [realtimeChannel, setRealtimeChannel] = useState("*");
   const [realtimeListening, setRealtimeListening] = useState(true);
-  const [realtimeEventsLogs, setRealtimeEventsLogs] = useState<any[]>([
-    { id: "ev-1", table: "users_profiles", type: "INSERT", schema: "public", timestamp: "19:54:12", payload: { id: "p_81", display_name: "Alice Key", email: "alice@vibe.io", status: "active" } }
-  ]);
+  const [realtimeEventsLogs, setRealtimeEventsLogs] = useState<any[]>([]);
 
   // --- Monico Labs Advanced Mock Functions ---
   const handleAddMwRule = (e: React.FormEvent) => {

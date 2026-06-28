@@ -6,6 +6,16 @@ import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
 import cors from "cors";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
+// Initialize Firebase Admin
+if (!getApps().length) {
+  initializeApp();
+}
+const db = getFirestore();
+const DB_COLLECTION = "vortex_system";
+const DB_DOC_ID = "main_state";
 
 import localtunnel from "localtunnel";
 
@@ -23,16 +33,16 @@ app.use(express.json());
 
 // Background metrics collector
 const metricsHistory: { cpu: number, ram: number }[] = [];
-for (let i = 0; i < 24; i++) {
-  metricsHistory.push({
-    cpu: Math.random() * 20,
-    ram: (os.totalmem() - os.freemem()) / (1024 * 1024)
-  });
-}
+// Start with empty history, will be populated by interval
 setInterval(() => {
   const usedRam = (os.totalmem() - os.freemem()) / (1024 * 1024);
-  let cpuUsage = os.loadavg()[0] * 10; // rough 1m load approximation to percentage
-  metricsHistory.push({ cpu: Math.min(100, cpuUsage), ram: usedRam });
+  const load = os.loadavg();
+  // loadavg is [1m, 5m, 15m] load. 
+  // Percentage is roughly (load / cpus) * 100
+  const cpus = os.cpus().length;
+  const cpuUsage = Math.min(100, (load[0] / cpus) * 100);
+  
+  metricsHistory.push({ cpu: cpuUsage, ram: usedRam });
   if (metricsHistory.length > 24) metricsHistory.shift();
 }, 5000);
 
@@ -143,127 +153,20 @@ interface ThreatIncident {
   query: string;
 }
 
-// Initial Shield Mock Databases
-let shieldConfigs: Record<string, ShieldConfig> = {
-  "proj-1": {
-    sslMode: "strict",
-    developmentMode: false,
-    brotli: true,
-    securityLevel: "high",
-    totalThreatsBlocked: 4,
-    wafRules: [
-      { id: "rule-1", field: "uri", operator: "contains", value: "/admin", action: "block", isEnabled: true },
-    ]
-  }
-};
-
-let baseIncidents: ThreatIncident[] = [
-  { id: "inc-1", timestamp: new Date(Date.now() - 3 * 60 * 1000).toISOString(), ip: "185.220.101.5", country: "Sweden", flag: "🇸🇪", threatType: "Cross-Site Scripting (XSS)", action: "blocked", query: "GET /api/comments?author_id=<script>alert(1)</script>" },
-  { id: "inc-2", timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString(), ip: "45.143.203.111", country: "Germany", flag: "🇩🇪", threatType: "SQL Injection Suspected", action: "blocked", query: "POST /auth/login?uname=' OR '1'='1" }
-];
+// Initial Shield Databases (Start empty)
+let shieldConfigs: Record<string, ShieldConfig> = {};
+let baseIncidents: ThreatIncident[] = [];
 
 
 import { DbTable, AuthConfig, AuthUser, ApiKey, Workspace, ComposioConnector } from "./src/types";
 
-// Monaco Labs Control Databases
-let databaseTables: Record<string, DbTable[]> = {
-  "proj-1": [
-    {
-      id: "tbl-1",
-      name: "users_profiles",
-      columns: [
-        { name: "id", type: "uuid", isNullable: false, isPrimaryKey: true },
-        { name: "display_name", type: "text", isNullable: true, isPrimaryKey: false },
-        { name: "email", type: "text", isNullable: false, isPrimaryKey: false },
-        { name: "is_active", type: "boolean", isNullable: false, isPrimaryKey: false, defaultValue: "true" },
-        { name: "created_at", type: "timestamp", isNullable: false, isPrimaryKey: false, defaultValue: "now()" }
-      ],
-      rows: [
-        { id: "e17a3a9b-8a8e-49b8-8e6d-927bac3398be", display_name: "Alice Vance", email: "alice@vortex.ml", is_active: true, created_at: "2026-06-18 12:44:02" },
-        { id: "10b86a81-d13c-42b7-84bc-cfc998a129ef", display_name: "Bruce Sterling", email: "bruce@neon.com", is_active: false, created_at: "2026-06-19 09:30:15" }
-      ]
-    },
-    {
-      id: "tbl-2",
-      name: "orders_v2",
-      columns: [
-        { name: "order_id", type: "uuid", isNullable: false, isPrimaryKey: true },
-        { name: "user_id", type: "uuid", isNullable: false, isPrimaryKey: false },
-        { name: "amount_cents", type: "integer", isNullable: false, isPrimaryKey: false },
-        { name: "shipped", type: "boolean", isNullable: false, isPrimaryKey: false, defaultValue: "false" }
-      ],
-      rows: [
-        { order_id: "77cd9e2e-2f5a-4e6f-be61-0dfdfab926ee", user_id: "e17a3a9b-8a8e-49b8-8e6d-927bac3398be", amount_cents: 14500, shipped: true }
-      ]
-    }
-  ]
-};
-
-let authConfigs: Record<string, AuthConfig> = {
-  "proj-1": {
-    jwtLifespan: 3600,
-    allowSignup: true,
-    passwordMinLength: 8,
-    providers: {
-      emailPassword: true,
-      magicLink: true,
-      otp: false
-    },
-    redirectUrls: ["https://active-gate.vortex.ml/callback", "http://localhost:3000/callback"]
-  }
-};
-
-let authUsers: Record<string, AuthUser[]> = {
-  "proj-1": [
-    { id: "usr-jay", email: "jayomer1234@gmail.com", createdAt: "2026-06-20T07:56:00Z", lastLogin: "2026-06-20T07:56:53Z", status: "active" },
-    { id: "usr-1", email: "alice@vortex.ml", createdAt: "2026-06-18T12:44:00Z", lastLogin: "2026-06-20T01:30:12Z", status: "active" },
-    { id: "usr-2", email: "bruce@neon.com", createdAt: "2026-06-19T09:30:00Z", lastLogin: "2026-06-20T02:00:44Z", status: "suspended" }
-  ]
-};
-
-let apiKeys: Record<string, ApiKey[]> = {
-  "proj-1": [
-    { id: "key-1", name: "Production Gateway Backend", secret: "vtx_live_79a2fbc89e73ad1a09df2b1ff", createdAt: "2026-06-19T10:00:00Z", rateLimit: 120, description: "Main API key for secure communication with Monaco client SDKs & CLI." }
-  ]
-};
-
-let workspaces: Workspace[] = [
-  {
-    id: "ws-1",
-    name: "Monaco Labs Main",
-    owner: "jayomer1234@gmail.com",
-    members: [
-      { email: "jayomer1234@gmail.com", role: "Owner" },
-      { email: "collaborator@monaco.io", role: "Admin" }
-    ]
-  },
-  {
-    id: "ws-2",
-    name: "Acme Enterprises",
-    owner: "jayomer1234@gmail.com",
-    members: [
-      { email: "jayomer1234@gmail.com", role: "Owner" }
-    ]
-  }
-];
-
-let composioConnectors: Record<string, ComposioConnector[]> = {
-  "proj-agent-1": [
-    { id: "conn-slack", name: "Slack", category: "Messengers", description: "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.", logo: "slack", isConnected: true, scopesCount: 12 },
-    { id: "conn-github", name: "GitHub", category: "Dev Tools", description: "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.", logo: "github", isConnected: true, scopesCount: 8 },
-    { id: "conn-google-calendar", name: "Google Calendar", category: "Productivity", description: "Automated schedule sync and event management for AI agents.", logo: "calendar", isConnected: false, scopesCount: 10 }
-  ],
-  "proj-1": [
-    { id: "conn-slack", name: "Slack", category: "Messengers", description: "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.", logo: "slack", isConnected: true, scopesCount: 12 },
-    { id: "conn-github", name: "GitHub", category: "Dev Tools", description: "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.", logo: "github", isConnected: true, scopesCount: 8 },
-    { id: "conn-discord", name: "Discord", category: "Messengers", description: "Stream alert logs and high severity attack warning alerts into server channels.", logo: "discord", isConnected: false, scopesCount: 4 },
-    { id: "conn-notion", name: "Notion", category: "Productivity", description: "Direct export of analytical summaries and performance logs into your tables.", logo: "notion", isConnected: false, scopesCount: 5 },
-    { id: "conn-hubspot", name: "HubSpot", category: "CRM", description: "Feed active edge registration pings straight into marketing contacts.", logo: "hubspot", isConnected: false, scopesCount: 6 },
-    { id: "conn-stripe", name: "Stripe", category: "CRM", description: "Automated ledger webhook triggers connected straight to database instances.", logo: "stripe", isConnected: false, scopesCount: 15 },
-    { id: "conn-gmail", name: "Gmail", category: "Productivity", description: "Send administration emails, verifications, OTP codes, and critical error dispatches.", logo: "gmail", isConnected: false, scopesCount: 10 },
-    { id: "conn-salesforce", name: "Salesforce", category: "CRM", description: "Synchronize client subscriptions, accounts, and server operations metrics.", logo: "salesforce", isConnected: false, scopesCount: 20 }
-  ]
-};
+// Monaco Labs Control Databases (Start empty)
+let databaseTables: Record<string, DbTable[]> = {};
+let authConfigs: Record<string, AuthConfig> = {};
+let authUsers: Record<string, AuthUser[]> = {};
+let apiKeys: Record<string, ApiKey[]> = {};
+let workspaces: Workspace[] = [];
+let composioConnectors: Record<string, ComposioConnector[]> = {};
 
 
 app.use((req, res, next) => {
@@ -275,199 +178,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initial Mock Seed Data
-let projects: Project[] = [
-  {
-    id: "proj-1",
-    name: "active-gate",
-    framework: "react",
-    repo: "user/active-gate",
-    branch: "main",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    activeDeploymentId: "dep-1",
-  }
-];
-
-let envVars: Record<string, EnvVar[]> = {
-  "proj-1": [
-    { id: "env-1-1", key: "VITE_APP_ENV", value: "production" },
-    { id: "env-1-2", key: "CACHE_TTL", value: "3600" },
-  ]
-};
-
-let domains: Record<string, string[]> = {
-  "proj-1": ["active-gate.vortex.ml"],
-};
-
-let deployments: Deployment[] = [
-  {
-    id: "dep-1",
-    projectId: "proj-1",
-    status: "ready",
-    previewUrl: "https://active-gate-dep-1.vortex.ml",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    commitMessage: "initial deployment: active security gate & web vitals baseline monitor",
-    commitHash: "e4f8d2a",
-    buildLogs: [
-      "[vortex] Initializing build workspace to deploy user/active-gate...",
-      "[vortex] Loaded 12 dependencies from cloud lockfile",
-      "[vortex] Running compiler script: \"vite build\"",
-      "[vite] Compiling TypeScript dynamic types...",
-      "[vite] Bundling assets with Rollup...",
-      "[vite] ✓ compiled in 0.8s",
-      "[vortex] DNS check successful: active-gate.vortex.ml validates correctly",
-      "[vortex] Deployment successful! 🎉",
-    ],
-    deployedHtml: `
-      <div class="min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white">
-        <div class="max-w-md space-y-6">
-          <div class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400">
-            <span class="text-lg font-bold">Æ</span>
-          </div>
-          <div class="space-y-2">
-            <h2 class="text-xl font-black text-white uppercase tracking-tight">Active Edge Service</h2>
-            <p class="text-neutral-500 text-xs">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>
-          </div>
-          <div class="p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg">
-            Status: <span class="text-emerald-400">ACTIVE</span> • Node: US-East-1
-          </div>
-        </div>
-      </div>
-    `,
-  },
-  {
-    id: "dep-2",
-    projectId: "proj-1",
-    status: "failed",
-    previewUrl: "",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    commitMessage: "feat: add OAuth authorization flow routes & telemetry logs",
-    commitHash: "cb81a29",
-    buildLogs: [
-      "[vortex] Spawning cloud compiler node for user/active-gate...",
-      "[vortex] Loaded 14 dependencies from package.json lockfile",
-      "[vortex] Running compiler script: \"npm run build\"",
-      "[vite] Compiling TypeScript dynamic types...",
-      "[compiler] Critical error in /src/routes/auth.ts (Line 42:8)",
-      "[compiler] Type 'null' is not assignable to type 'string' for OAuth ClientId credential mapping.",
-      "[compiler] └─ Source: const clientId: string = process.env.GITHUB_CLIENT_ID;",
-      "[compiler] Error: Vite build process exited with status code 1. Bundling canceled.",
-      "[vortex] Error: Build failed and edge-compilation was halted. Review diagnostics above."
-    ],
-    deployedHtml: ""
-  }
-];
-
-let serverlessFunctions: ServerlessFunction[] = [
-  {
-    id: "func-1",
-    projectId: "proj-1",
-    name: "hello.ts",
-    route: "/api/hello",
-    code: `export default async function handler(req: Request) {
-  return Response.json({
-    status: "healthy",
-    message: "Active-gate serverless endpoint running successfully.",
-    timestamp: new Date().toISOString()
-  });
-}`,
-    description: "Sub-10ms serverless edge endpoint returning status handshake payloads.",
-  }
-];
-
+// Initial Seed Data (Start empty)
+let projects: Project[] = [];
+let envVars: Record<string, EnvVar[]> = {};
+let domains: Record<string, string[]> = {};
+let deployments: Deployment[] = [];
+let serverlessFunctions: ServerlessFunction[] = [];
 let apiGateways: Record<string, { id: string, route: string, target?: string }[]> = {};
 let backups: Record<string, { id: string, date: string, status: string }[]> = {};
 let backupPolicies: Record<string, string> = {};
-let environments: Record<string, string[]> = { "proj-1": ["production", "staging"] };
+let environments: Record<string, string[]> = {};
 let gitRepos: Record<string, { url: string, branch: string, status: string, modified: string[], untracked: string[] }> = {};
 let sslCertificates: Record<string, { domain: string, status: string, expiresAt: string }[]> = {};
 let auditTrails: Record<string, { timestamp: string, action: string, user: string }[]> = {};
 let realTimeChannels: Record<string, { name: string, subscribers: number }[]> = {};
 let storageBuckets: Record<string, { name: string, size: number, files: string[] }[]> = {};
 let autoScalingConfigs: Record<string, number> = {};
-
-let executionLogs: FunctionExecutionLog[] = [
-  {
-    id: "exec-1",
-    functionId: "func-1",
-    timestamp: new Date().toISOString(),
-    status: 200,
-    durationMs: 4,
-    memoryMb: 12.4,
-    stdout: [
-      "INFO: initializing runtime microservice isolate",
-      "TRACE: evaluating hello.ts execution handler",
-      "SUCCESS: response processed in 4ms",
-    ],
-    responseBody: JSON.stringify(
-      {
-        status: "healthy",
-        message: "Active-gate serverless endpoint running successfully.",
-        timestamp: new Date().toISOString()
-      },
-      null,
-      2
-    ),
-  },
-];
-
-let databaseServices: Record<string, any[]> = {
-  "proj-1": [
-    {
-      id: "dbs-1",
-      projectId: "proj-1",
-      name: "prod-postgres",
-      type: "postgresql",
-      status: "active",
-      connectionString: "postgresql://postgres:vx_pwd_948a28f8ac2@vortex.ml:5432/active-gate-db",
-      host: "vortex.ml",
-      port: 5432,
-      username: "postgres",
-      password: "vx_pwd_948a28f8ac2",
-      databaseName: "active-gate-db",
-      allocatedCpu: 0.25,
-      allocatedRam: 512,
-      allocatedStorage: 10,
-      metrics: {
-        cpuUsage: [12, 19, 11, 24, 18, 15, 23, 14, 16],
-        ramUsage: [64, 68, 62, 70, 72, 65, 68, 69, 71]
-      },
-      region: "US-East-1 (N. Virginia)",
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-    }
-  ]
-};
-
-let scalingConfigs: Record<string, any> = {
-  "proj-1": {
-    minInstances: 1,
-    maxInstances: 5,
-    targetCpuPercent: 70,
-    maxMemoryOption: "512MB",
-    concurrencyLimit: 80,
-    optimizeTreeShaking: true
-  }
-};
-
-let projectEnvironments: Record<string, any[]> = {
-  "proj-1": [
-    {
-      id: "env-prod",
-      projectId: "proj-1",
-      name: "production",
-      isActive: true,
-      variablesCount: 2
-    },
-    {
-      id: "env-stag",
-      projectId: "proj-1",
-      name: "staging",
-      isActive: false,
-      variablesCount: 2,
-      clonedFrom: "production"
-    }
-  ]
-};
+let executionLogs: FunctionExecutionLog[] = [];
+let databaseServices: Record<string, any[]> = {};
+let scalingConfigs: Record<string, any> = {};
+let projectEnvironments: Record<string, any[]> = {};
+let teamTokens: Record<string, TeamAccessToken[]> = {};
+let workspacePolicies: Record<string, WorkspacePolicies> = {};
 
 interface TeamAccessToken {
   id: string;
@@ -487,39 +219,13 @@ interface WorkspacePolicies {
   deployment: "Read" | "Write" | "None";
 }
 
-let teamTokens: Record<string, TeamAccessToken[]> = {
-  "ws-1": [
-    { id: "tok-1", name: "CI Sync Deploy pipeline", token: "vx_team_priv_7f3a9e9a4f4e19bda", createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), scope: "Write", role: "CI/CD automation tool" },
-    { id: "tok-2", name: "Read-only analytics aggregator", token: "vx_team_priv_324ebd9ad2a71bf", createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), scope: "Read", role: "Metrics analyzer" }
-  ]
-};
-
-let workspacePolicies: Record<string, WorkspacePolicies> = {
-  "ws-1": {
-    projects: "Write",
-    database: "Read",
-    auth: "None",
-    shield: "Read",
-    billing: "None",
-    deployment: "Write"
-  },
-  "ws-2": {
-    projects: "Read",
-    database: "None",
-    auth: "None",
-    shield: "None",
-    billing: "None",
-    deployment: "Read"
-  }
-};
-
 // --- MONACO LABS CUSTOM PERSISTENT DATABASE ENGINE ---
 // This database operates entirely independently of third-party platforms like Monico Labs.
 // It persists the entire server-side application state to distributed cloud volume.
 const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
 const LOCAL_DB_FILE_PATH = path.join(process.cwd(), "vortex_local_db.json");
 
-function saveToCloudDB() {
+async function saveToCloudDB() {
   try {
     const dataToSave = {
       shieldConfigs,
@@ -552,27 +258,36 @@ function saveToCloudDB() {
       storageBuckets,
       autoScalingConfigs
     };
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(dataToSave, null, 2), "utf-8");
+    
+    // Save to Firestore for real persistence
+    await db.collection(DB_COLLECTION).doc(DB_DOC_ID).set(dataToSave);
+    
+    // Also keep local fallback for now
     fs.writeFileSync(LOCAL_DB_FILE_PATH, JSON.stringify(dataToSave, null, 2), "utf-8");
+    console.log("[vortex-db] State saved to Firestore successfully.");
   } catch (err) {
-    console.error("[vortex-db] Write security/data serialization error:", err);
+    console.error("[vortex-db] Firestore write error:", err);
   }
 }
 
-function loadFromCloudDB() {
+async function loadFromCloudDB() {
   try {
-    let dataLoaded = false;
-    let data = "";
-    if (fs.existsSync(DB_FILE_PATH)) {
-      data = fs.readFileSync(DB_FILE_PATH, "utf-8");
-      dataLoaded = true;
+    console.log("[vortex-db] Loading state from Firestore...");
+    const doc = await db.collection(DB_COLLECTION).doc(DB_DOC_ID).get();
+    
+    let loaded: any = null;
+    if (doc.exists) {
+      loaded = doc.data();
+      console.log("[vortex-db] State restored successfully from Firestore.");
     } else if (fs.existsSync(LOCAL_DB_FILE_PATH)) {
-      data = fs.readFileSync(LOCAL_DB_FILE_PATH, "utf-8");
-      dataLoaded = true;
+      const localData = fs.readFileSync(LOCAL_DB_FILE_PATH, "utf-8");
+      if (localData.trim()) {
+        loaded = JSON.parse(localData);
+        console.log("[vortex-db] State restored from local fallback.");
+      }
     }
 
-    if (dataLoaded && data.trim()) {
-      const loaded = JSON.parse(data);
+    if (loaded) {
       if (loaded.shieldConfigs) shieldConfigs = loaded.shieldConfigs;
       if (loaded.baseIncidents) baseIncidents = loaded.baseIncidents;
       if (loaded.databaseTables) databaseTables = loaded.databaseTables;
@@ -630,7 +345,7 @@ app.use((req, res, next) => {
 });
 
 // Run load on boot
-loadFromCloudDB();
+// (removed from here, moved to startServer)
 
 // ----------------------------------------------------
 // VORTEX CLOUD EDGE ROUTER: Custom Domain Mapping Handler
@@ -3510,6 +3225,7 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, 
 
 // Connect Express paths with Vite configuration
 async function startServer() {
+  await loadFromCloudDB();
   const isStdioMode = process.argv.includes("--stdio") || process.env.MCP_STDIO === "true";
 
   if (isStdioMode) {
