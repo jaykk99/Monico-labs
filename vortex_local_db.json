@@ -292,6 +292,35 @@
         "isConnected": false,
         "scopesCount": 0
       }
+    ],
+    "proj-agent-1": [
+      {
+        "id": "conn-slack",
+        "name": "Slack",
+        "category": "Messengers",
+        "description": "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.",
+        "logo": "slack",
+        "isConnected": true,
+        "scopesCount": 12
+      },
+      {
+        "id": "conn-github",
+        "name": "GitHub",
+        "category": "Dev Tools",
+        "description": "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.",
+        "logo": "github",
+        "isConnected": true,
+        "scopesCount": 8
+      },
+      {
+        "id": "conn-google-calendar",
+        "name": "Google Calendar",
+        "category": "Productivity",
+        "description": "Automated schedule sync and event management for AI agents.",
+        "logo": "calendar",
+        "isConnected": false,
+        "scopesCount": 10
+      }
     ]
   },
   "projects": [
@@ -410,5 +439,133 @@
       ],
       "responseBody": "{\n  \"status\": \"healthy\",\n  \"message\": \"Active-gate serverless endpoint running successfully.\",\n  \"timestamp\": \"2026-06-20T14:25:45.389Z\"\n}"
     }
-  ]
+  ],
+  "databaseServices": {
+    "proj-1": [
+      {
+        "id": "dbs-1",
+        "projectId": "proj-1",
+        "name": "prod-postgres",
+        "type": "postgresql",
+        "status": "active",
+        "connectionString": "postgresql://postgres:vx_pwd_948a28f8ac2@vortex.ml:5432/active-gate-db",
+        "host": "vortex.ml",
+        "port": 5432,
+        "username": "postgres",
+        "password": "vx_pwd_948a28f8ac2",
+        "databaseName": "active-gate-db",
+        "allocatedCpu": 0.25,
+        "allocatedRam": 512,
+        "allocatedStorage": 10,
+        "metrics": {
+          "cpuUsage": [
+            12,
+            19,
+            11,
+            24,
+            18,
+            15,
+            23,
+            14,
+            16
+          ],
+          "ramUsage": [
+            64,
+            68,
+            62,
+            70,
+            72,
+            65,
+            68,
+            69,
+            71
+          ]
+        },
+        "region": "US-East-1 (N. Virginia)",
+        "createdAt": "2026-06-26T04:07:44.548Z"
+      }
+    ]
+  },
+  "scalingConfigs": {
+    "proj-1": {
+      "minInstances": 1,
+      "maxInstances": 5,
+      "targetCpuPercent": 70,
+      "maxMemoryOption": "512MB",
+      "concurrencyLimit": 80,
+      "optimizeTreeShaking": true
+    }
+  },
+  "projectEnvironments": {
+    "proj-1": [
+      {
+        "id": "env-prod",
+        "projectId": "proj-1",
+        "name": "production",
+        "isActive": true,
+        "variablesCount": 2
+      },
+      {
+        "id": "env-stag",
+        "projectId": "proj-1",
+        "name": "staging",
+        "isActive": false,
+        "variablesCount": 2,
+        "clonedFrom": "production"
+      }
+    ]
+  },
+  "teamTokens": {
+    "ws-1": [
+      {
+        "id": "tok-1",
+        "name": "CI Sync Deploy pipeline",
+        "token": "vx_team_priv_7f3a9e9a4f4e19bda",
+        "createdAt": "2026-06-24T04:07:44.548Z",
+        "scope": "Write",
+        "role": "CI/CD automation tool"
+      },
+      {
+        "id": "tok-2",
+        "name": "Read-only analytics aggregator",
+        "token": "vx_team_priv_324ebd9ad2a71bf",
+        "createdAt": "2026-06-27T04:07:44.548Z",
+        "scope": "Read",
+        "role": "Metrics analyzer"
+      }
+    ]
+  },
+  "workspacePolicies": {
+    "ws-1": {
+      "projects": "Write",
+      "database": "Read",
+      "auth": "None",
+      "shield": "Read",
+      "billing": "None",
+      "deployment": "Write"
+    },
+    "ws-2": {
+      "projects": "Read",
+      "database": "None",
+      "auth": "None",
+      "shield": "None",
+      "billing": "None",
+      "deployment": "Read"
+    }
+  },
+  "apiGateways": {},
+  "backups": {},
+  "backupPolicies": {},
+  "environments": {
+    "proj-1": [
+      "production",
+      "staging"
+    ]
+  },
+  "gitRepos": {},
+  "sslCertificates": {},
+  "auditTrails": {},
+  "realTimeChannels": {},
+  "storageBuckets": {},
+  "autoScalingConfigs": {}
 }

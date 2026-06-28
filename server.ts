@@ -7,7 +7,7 @@ import fs from "fs";
 import os from "os";
 import cors from "cors";
 
-import { tunnelmole } from "tunnelmole";
+import localtunnel from "localtunnel";
 
 dotenv.config();
 
@@ -248,6 +248,11 @@ let workspaces: Workspace[] = [
 ];
 
 let composioConnectors: Record<string, ComposioConnector[]> = {
+  "proj-agent-1": [
+    { id: "conn-slack", name: "Slack", category: "Messengers", description: "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.", logo: "slack", isConnected: true, scopesCount: 12 },
+    { id: "conn-github", name: "GitHub", category: "Dev Tools", description: "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.", logo: "github", isConnected: true, scopesCount: 8 },
+    { id: "conn-google-calendar", name: "Google Calendar", category: "Productivity", description: "Automated schedule sync and event management for AI agents.", logo: "calendar", isConnected: false, scopesCount: 10 }
+  ],
   "proj-1": [
     { id: "conn-slack", name: "Slack", category: "Messengers", description: "Trigger workspace event updates, build completion alerts, and firewall challenge notifications.", logo: "slack", isConnected: true, scopesCount: 12 },
     { id: "conn-github", name: "GitHub", category: "Dev Tools", description: "Poll commits, pull webhook notifications, trigger autodeploy on master pushes.", logo: "github", isConnected: true, scopesCount: 8 },
@@ -263,7 +268,7 @@ let composioConnectors: Record<string, ComposioConnector[]> = {
 
 app.use((req, res, next) => {
   res.on('finish', () => {
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && !req.path.includes('/api/mcp/run') && !req.path.includes('/api/monioco-labs.mcp')) {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && !req.path.includes('/api/mcp/run') && !req.path.includes('/api/monico-labs.mcp')) {
       saveToCloudDB();
     }
   });
@@ -2081,6 +2086,17 @@ app.get("/api/projects/:projectId/composio/connectors", (req, res) => {
   res.json(composioConnectors[projectId]);
 });
 
+app.post("/api/projects/:projectId/composio/connectors", (req, res) => {
+  const { projectId } = req.params;
+  const connectors = req.body;
+  if (!Array.isArray(connectors)) {
+    return res.status(400).json({ success: false, error: "Invalid connectors format" });
+  }
+  composioConnectors[projectId] = connectors;
+  saveToCloudDB();
+  res.json({ success: true });
+});
+
 app.post("/api/projects/:projectId/composio/connectors/:id/toggle", (req, res) => {
   const { projectId, id } = req.params;
   const connectors = composioConnectors[projectId] || [];
@@ -2088,18 +2104,23 @@ app.post("/api/projects/:projectId/composio/connectors/:id/toggle", (req, res) =
   if (match) {
     match.isConnected = !match.isConnected;
     match.scopesCount = match.isConnected ? Math.floor(Math.random() * 12) + 5 : 0;
+    saveToCloudDB();
   }
   res.json({ success: true, connector: match });
 });
 
 app.post("/api/composio/mcp-connect", async (req, res) => {
   const { apiKey, endpoint } = req.body;
-  if (!apiKey || !endpoint) return res.status(400).json({ success: false, error: "Missing API key or endpoint" });
+  if (!endpoint) return res.status(400).json({ success: false, error: "Missing endpoint" });
   try {
+    const requestInit: RequestInit = {};
+    if (apiKey) {
+      requestInit.headers = { "x-consumer-api-key": apiKey };
+    }
     const transport = new SSEClientTransport(new URL(endpoint), {
-      requestInit: { headers: { "x-consumer-api-key": apiKey } }
+      requestInit
     });
-    const client = new Client({ name: "monaco-labs", version: "1.0.0" }, { capabilities: {} });
+    const client = new Client({ name: "monico-labs", version: "1.0.0" }, { capabilities: {} });
     await client.connect(transport);
     const toolsResponse = await client.request({ method: "tools/list" }, z.any());
     await transport.close();
@@ -3064,9 +3085,9 @@ app.get("/api/mcp/public-url", (req, res) => {
   }
 });
 
-app.get(["/api/monioco-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
+app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const isMcpPath = req.path.includes("/api/mcp/sse");
-  const endpointPath = isMcpPath ? "/api/mcp" : "/api/monioco-labs.mcp";
+  const endpointPath = isMcpPath ? "/api/mcp" : "/api/monico-labs.mcp";
   const transport = new SSEServerTransport(endpointPath, res);
   // The MCP SDK usually doesn't have a public sessionId property on SSEServerTransport constructor
   // We need to generate or identify the sessionId correctly.
@@ -3083,7 +3104,7 @@ app.get(["/api/monioco-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, m
   });
 });
 
-app.post(["/api/monioco-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
+app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
   let transport = transports.get(sessionId);
   if (!transport && transports.size > 0) {
@@ -3129,7 +3150,7 @@ app.get("/api/mcp/run", async (req, res) => {
   try {
      const isLocal = !endpoint || 
                      endpoint.includes("localhost") || 
-                     endpoint.includes("monioco-labs.mcp") || 
+                     endpoint.includes("monico-labs.mcp") || 
                      endpoint.includes("127.0.0.1") || 
                      endpoint.includes("vortex") || 
                      endpoint.includes("connect.composio.dev") === false;
@@ -3265,15 +3286,22 @@ app.get("/api/mcp/run", async (req, res) => {
      }));
 
      let messages: any[] = [
-       { role: 'user', parts: [{ text: prompt }] }
+       { role: 'user', parts: [{ text: `OPERATIONAL PROTOCOLS (MANDATORY):
+1. ONE TOOL PER TURN: Never attempt to execute multiple MCP tool calls simultaneously or in a single response turn.
+2. EXPLICIT PARAMETERS: Before executing any tool, explicitly verify that all required software arguments are fully defined.
+3. PRE-FLIGHT REASONING: Before calling a tool, output a single short sentence explaining exactly WHY you are calling it and WHAT software outcome you expect.
+4. LOOP DETECTION: If a tool call fails, returns an error, or returns the exact same data as a previous turn, stop immediately and state: "SOFTWARE LOOP DETECTED: Manual intervention required."
+5. NO HALLUCINATED TOOLS: Only call software tools that are explicitly exposed in your active MCP schema definition.
+
+User Request: ${prompt}` }] }
      ];
 
      let loopCount = 0;
      let completed = false;
 
-     while (loopCount < 8 && !completed) {
+     while (loopCount < 12 && !completed) {
        loopCount++;
-       sendLog(`[AGENT-SYSTEM] Thinking... (Turn ${loopCount}/8)`);
+       sendLog(`[AGENT-SYSTEM] Thinking... (Turn ${loopCount}/12)`);
        
        try {
          const response = await ai.models.generateContent({
@@ -3295,7 +3323,12 @@ app.get("/api/mcp/run", async (req, res) => {
          if (functionCalls && functionCalls.length > 0) {
            const functionResponseParts: any[] = [];
            
-           for (const call of functionCalls) {
+           const call = functionCalls[0];
+            if (functionCalls.length > 1) {
+              sendLog(`[AGENT-WARNING] Model attempted multiple calls (${functionCalls.length}). Enforcing ONE TOOL PER TURN protocol. Executing only '${call.name}'.`);
+            }
+            if (call) {
+
               sendLog(`[AGENT-ROUTE] LLM reasoning selected tool '${call.name}'`);
               
               // Revert sanitized name back to original tool name
@@ -3332,14 +3365,13 @@ app.get("/api/mcp/run", async (req, res) => {
                   sendLog(`[MCP-EXEC-FAILED] ${call.name} execution failed: ${execErr.message}`);
                 }
               }
-
               functionResponseParts.push({
                 functionResponse: {
                   name: call.name,
                   response: resultVal || { success: true }
                 }
               });
-           }
+            }
 
            messages.push({
              role: 'user',
@@ -3512,11 +3544,23 @@ async function startServer() {
 
   async function startTunnel() {
     try {
-      console.log("[TUNNEL] Starting Tunnelmole on port 3000...");
-      publicMcpUrl = await tunnelmole({ port: 3000 });
+      console.log("[TUNNEL] Starting Localtunnel on port 3000...");
+      const tunnel = await localtunnel({ port: 3000, subdomain: "monico-labs" });
+      publicMcpUrl = tunnel.url;
       console.log(`[TUNNEL] Public unauthenticated MCP URL generated successfully: ${publicMcpUrl}`);
+      
+      tunnel.on("close", () => {
+        console.log("[TUNNEL] Localtunnel closed. Reconnecting in 5 seconds...");
+        publicMcpUrl = "";
+        setTimeout(startTunnel, 5000);
+      });
+      
+      tunnel.on("error", (err: any) => {
+        console.error("[TUNNEL] Localtunnel error:", err);
+        publicMcpUrl = "";
+      });
     } catch (error) {
-      console.error("[TUNNEL] Tunnelmole start error:", error);
+      console.error("[TUNNEL] Localtunnel start error:", error);
       publicMcpUrl = "";
       setTimeout(startTunnel, 10000); // Retry in 10s
     }

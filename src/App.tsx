@@ -517,6 +517,7 @@ export default function App() {
   };
 
   const fetchComposioConnectors = (projectId: string) => {
+    if (isTestingMcp) return; // Don't overwrite if we are currently connecting a new one
     fetch(`/api/projects/${projectId}/composio/connectors`)
       .then((res) => res.json())
       .then((data) => setComposioConnectorsList(data))
@@ -1093,9 +1094,20 @@ export default function App() {
           name: app.charAt(0).toUpperCase() + app.slice(1),
           logo: app.toLowerCase(),
           category: "Integration",
-          isConnected: true
+          isConnected: true,
+          description: `Direct MCP tool access for ${app}.`,
+          scopesCount: 0
         }));
         setComposioConnectorsList(newConnectors);
+
+        // PERSIST TO BACKEND
+        if (currentProject) {
+          fetch(`/api/projects/${currentProject.id}/composio/connectors`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newConnectors)
+          }).catch(err => console.error("Failed to persist connectors:", err));
+        }
       } else {
         setMcpTestRunStatus("failed");
         setMcpTestLogs([`Rejected: ${data.error}`]);
@@ -4700,7 +4712,7 @@ console.log(result.content[0].text);`);
                       <button
                         type="button"
                         onClick={handleConnectComposio}
-                        disabled={isTestingMcp || !mcpApiKey.trim()}
+                        disabled={isTestingMcp || !mcpEndpoint.trim()}
                         className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-neutral-950 font-bold text-xs font-mono h-10 rounded-lg transition tracking-wide shadow flex items-center justify-center gap-2 uppercase"
                       >
                         {isTestingMcp ? (
@@ -4896,7 +4908,37 @@ console.log(result.content[0].text);`);
 
                     {/* Notice Box */}
                     <div className="p-4 bg-indigo-950/15 border border-indigo-500/10 rounded-xl leading-relaxed text-[10px] font-mono text-indigo-300">
-                      <strong>How it works:</strong> The agent executes in real-time. It interprets your request, parses available MCP tools, runs multi-turn planning on Gemini, and applies changes directly. Once finished, updates will appear in your dashboard instantly.
+                      <strong>How it works:</strong> The agent interprets your request, parses available MCP tools, runs multi-turn planning, and applies changes directly.
+                    </div>
+
+                    {/* Operational Protocols Card */}
+                    <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-3">
+                      <div className="flex items-center gap-2 text-amber-400">
+                        <Shield className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Agent Operational Protocols</span>
+                      </div>
+                      <div className="space-y-2 font-mono text-[9px] text-neutral-400 uppercase leading-normal">
+                        <div className="flex gap-2">
+                          <span className="text-amber-500">01.</span>
+                          <span>One Tool Per Turn: Sequential tool execution only.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-amber-500">02.</span>
+                          <span>Explicit Parameters: Zero-guess variable validation.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-amber-500">03.</span>
+                          <span>Pre-Flight Reasoning: Explicit intent justification.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-amber-500">04.</span>
+                          <span>Loop Detection: Automatic halt on state repetition.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-amber-500">05.</span>
+                          <span>No Hallucinated Tools: Schema-only capability access.</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
