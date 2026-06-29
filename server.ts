@@ -26,7 +26,23 @@ const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const app = express();
 app.set("trust proxy", true);
-const PORT = 3000;
+const PORT = process.env.VORTEX_PORT ? parseInt(process.env.VORTEX_PORT) : 3000;
+
+// Hardware scaling logic to optimize for low-end (Termux/Mobile) to high-end (Servers)
+const totalMemMB = os.totalmem() / (1024 * 1024);
+const cpuCores = os.cpus().length;
+let systemProfile = "good";
+
+if (totalMemMB < 3000 || cpuCores <= 2) {
+  systemProfile = "bad"; // Low end
+  console.log(`[VORTEX] Low-end hardware detected (${Math.round(totalMemMB)}MB RAM, ${cpuCores} cores). Optimizing for Termux/Mobile...`);
+} else if (totalMemMB < 8000 || cpuCores <= 4) {
+  systemProfile = "medium"; // Mid range
+  console.log(`[VORTEX] Mid-range hardware detected (${Math.round(totalMemMB)}MB RAM, ${cpuCores} cores).`);
+} else {
+  systemProfile = "good"; // High end
+  console.log(`[VORTEX] High-end hardware detected (${Math.round(totalMemMB)}MB RAM, ${cpuCores} cores). Maximizing performance.`);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -34,6 +50,7 @@ app.use(express.json());
 // Background metrics collector
 const metricsHistory: { cpu: number, ram: number }[] = [];
 // Start with empty history, will be populated by interval
+const metricsIntervalMs = systemProfile === "bad" ? 15000 : (systemProfile === "medium" ? 10000 : 5000);
 setInterval(() => {
   const usedRam = (os.totalmem() - os.freemem()) / (1024 * 1024);
   const load = os.loadavg();
@@ -44,7 +61,7 @@ setInterval(() => {
   
   metricsHistory.push({ cpu: cpuUsage, ram: usedRam });
   if (metricsHistory.length > 24) metricsHistory.shift();
-}, 5000);
+}, metricsIntervalMs);
 
 app.get("/api/metrics", (req, res) => {
   const lastMetric = metricsHistory.length > 0 ? metricsHistory[metricsHistory.length - 1] : { cpu: 0, ram: 0 };
@@ -326,6 +343,60 @@ async function loadFromCloudDB() {
     } else {
       saveToCloudDB();
     }
+    
+    // Seed default workspace if empty
+    if (workspaces.length === 0) {
+      workspaces.push({
+        id: "ws-default",
+        name: "My First Workspace",
+        owner: "jayomer1234@gmail.com",
+        members: [{ email: "jayomer1234@gmail.com", role: "Owner" }]
+      });
+      console.log("[vortex-db] Seeded default workspace.");
+      await saveToCloudDB();
+    }
+
+    if (projects.length === 0) {
+      const defaultProjectId = "proj-1";
+      projects.push({
+        id: defaultProjectId,
+        name: "active-gate",
+        framework: "react",
+        repo: "user/active-gate",
+        branch: "main",
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        activeDeploymentId: "dep-1",
+      });
+      
+      deployments.push({
+        id: "dep-1",
+        projectId: defaultProjectId,
+        status: "ready",
+        previewUrl: "https://active-gate-dep-1.vortex.ml",
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        commitMessage: "initial deployment: active security gate & web vitals baseline monitor",
+        commitHash: "e4f8d2a",
+        buildLogs: [
+          "[vortex] Initializing build workspace to deploy user/active-gate...",
+          "[vortex] Loaded 12 dependencies from cloud lockfile",
+          "[vortex] Running compiler script: \"vite build\"",
+          "[vite] ✓ compiled in 0.8s",
+          "[vortex] Deployment successful! 🎉",
+        ],
+        deployedHtml: `
+          <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center p-8 text-center">
+            <h2 class="text-xl font-black text-white uppercase tracking-tight">Active Edge Service</h2>
+            <p class="text-neutral-500 text-xs">Vortex routing completed successfully.</p>
+          </div>
+        `,
+      });
+
+      domains[defaultProjectId] = [`${defaultProjectId}.vortex.ml`];
+      envVars[defaultProjectId] = [{ id: "env-1", key: "VITE_APP_ENV", value: "production" }];
+      
+      console.log("[vortex-db] Seeded initial project and deployment.");
+      await saveToCloudDB();
+    }
   } catch (err) {
     console.error("[vortex-db] Read error, running on default memory variables:", err);
   }
@@ -377,7 +448,8 @@ app.use((req, res, next) => {
 });
 
 // Helper to generate mock deployments dynamically inside the deployment trigger
-const FRAMEWORK_BUILD_DURATION_SIM = 3000; // Synthetic compiler block in ms
+// Dynamic scaling based on hardware limits
+const FRAMEWORK_BUILD_DURATION_SIM = systemProfile === "bad" ? 500 : (systemProfile === "medium" ? 1500 : 3000); // Synthetic compiler block in ms
 
 // Express API Routes
 function logMcpAction(projectId: string, action: string, user: string = "3rd-Party AI Agent") {
@@ -398,6 +470,7 @@ app.get("/api/projects/:projectId/audit-logs", (req, res) => {
 });
 
 app.get("/api/projects", (req, res) => {
+  console.log(`[GET /api/projects] Returning ${projects.length} projects`);
   res.json(projects);
 });
 
@@ -422,6 +495,7 @@ app.post("/api/projects", (req, res) => {
   projects.push(prj);
   domains[prj.id] = [`${prj.name}.vortex.ml`];
   envVars[prj.id] = [];
+  saveToCloudDB();
   res.status(201).json(prj);
 });
 
@@ -442,6 +516,7 @@ app.post("/api/projects/:id/env", (req, res) => {
   } else {
     envVars[id].push({ id: `env-${generateId()}`, key, value });
   }
+  saveToCloudDB();
   res.json(envVars[id]);
 });
 
@@ -450,6 +525,7 @@ app.delete("/api/projects/:projectId/env/:envId", (req, res) => {
   if (envVars[projectId]) {
     envVars[projectId] = envVars[projectId].filter((e) => e.id !== envId);
   }
+  saveToCloudDB();
   res.json({ success: true, envs: envVars[projectId] || [] });
 });
 
@@ -467,6 +543,7 @@ app.post("/api/projects/:id/domains", (req, res) => {
   const formatted = domain.toLowerCase().trim();
   if (!domains[id].includes(formatted)) {
     domains[id].push(formatted);
+    saveToCloudDB();
   }
   res.json(domains[id]);
 });
@@ -528,6 +605,7 @@ app.post("/api/projects/:id/domains/agent-allocate", (req, res) => {
 
   deployments.push(newDeployment);
   project.activeDeploymentId = newDeployment.id;
+  saveToCloudDB();
 
   res.json({
     success: true,
@@ -790,7 +868,7 @@ ${extraInstructions}
 Write ONLY pure, valid, formatted HTML contents to place INSIDE the body element. Do NOT output any markdown tags (like \`\`\`html) or conversational commentary. Start immediately with the visual code.`;
 
       const aiResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: prompt,
       });
 
@@ -872,7 +950,7 @@ app.post("/api/functions/run", async (req, res) => {
 
         if (ai) {
           const aiResponse = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-1.5-flash",
             contents: `Perform sentiment analysis on this text: "${text}". Output only a simple structural JSON string containing fields: 'sentiment' ('POSITIVE' | 'NEGATIVE' | 'NEUTRAL'), 'score' (confidence value 0 to 1), and 'keywords' (array of strings). Do not write raw markdown back, only string JSON.`,
           });
           const textRes = aiResponse.text;
@@ -1163,6 +1241,7 @@ app.post("/api/workspaces", (req, res) => {
     ]
   };
   workspaces.push(newWorkspace);
+  saveToCloudDB();
   res.json(newWorkspace);
 });
 
@@ -3020,7 +3099,7 @@ User Request: ${prompt}` }] }
        
        try {
          const response = await ai.models.generateContent({
-           model: "gemini-3.5-flash",
+           model: "gemini-1.5-flash",
            contents: messages,
            config: {
              tools: [{ functionDeclarations: tools }]

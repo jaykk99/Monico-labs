@@ -39,6 +39,9 @@ export default function AnalyticsCharts({
 
   // Function to map coordinates for SVG polyline/path points
   const getPoints = (values: number[], max: number) => {
+    if (values.length <= 1) {
+      return values.map((val) => ({ x: width / 2, y: height - (val / max) * (height - 30) - 15 }));
+    }
     return values
       .map((val, idx) => {
         const x = (idx / (values.length - 1)) * (width - 40) + 20;

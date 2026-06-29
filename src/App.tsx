@@ -48,7 +48,7 @@ import ServerlessPlayground from "./components/ServerlessPlayground";
 
 export default function App() {
   // Navigation & Project tab tracking
-  const [activeTab, setActiveTab] = useState<"projects" | "deployments" | "metrics" | "database" | "auth" | "apis" | "shield" | "composio" | "mcp" | "agent" | "teams" | "settings" | "selfhost" | "errors">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "deployments" | "metrics" | "database" | "auth" | "serverless" | "apis" | "shield" | "composio" | "mcp" | "agent" | "teams" | "settings" | "selfhost" | "errors">("projects");
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -466,9 +466,10 @@ export default function App() {
     fetch(`/api/projects/${projectId}/database/tables`)
       .then((res) => res.json())
       .then((data) => {
-        setDbTables(data);
-        if (data.length > 0) {
-          setSelectedDbTable(data[0]);
+        const safeData = Array.isArray(data) ? data : [];
+        setDbTables(safeData);
+        if (safeData.length > 0) {
+          setSelectedDbTable(safeData[0]);
         } else {
           setSelectedDbTable(null);
         }
@@ -484,14 +485,14 @@ export default function App() {
 
     fetch(`/api/projects/${projectId}/auth/users`)
       .then((res) => res.json())
-      .then((data) => setAuthUsersList(data))
+      .then((data) => setAuthUsersList(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Auth users load error:", err));
   };
 
   const fetchApiKeys = (projectId: string) => {
     fetch(`/api/projects/${projectId}/api-keys`)
       .then((res) => res.json())
-      .then((data) => setApiKeysList(data))
+      .then((data) => setApiKeysList(Array.isArray(data) ? data : []))
       .catch((err) => console.error("API keys load error:", err));
   };
 
@@ -499,14 +500,14 @@ export default function App() {
     if (isTestingMcp) return; // Don't overwrite if we are currently connecting a new one
     fetch(`/api/projects/${projectId}/composio/connectors`)
       .then((res) => res.json())
-      .then((data) => setComposioConnectorsList(data))
+      .then((data) => setComposioConnectorsList(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Composio connectors load error:", err));
   };
 
   const fetchDatabaseServices = (projectId: string) => {
     fetch(`/api/projects/${projectId}/database/services`)
       .then((res) => res.json())
-      .then((data) => setDatabaseServices(data))
+      .then((data) => setDatabaseServices(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Database services load error:", err));
   };
 
@@ -520,7 +521,7 @@ export default function App() {
   const fetchEnvironments = (projectId: string) => {
     fetch(`/api/projects/${projectId}/environments`)
       .then((res) => res.json())
-      .then((data) => setEnvironmentsList(data))
+      .then((data) => setEnvironmentsList(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Environments load error:", err));
   };
 
@@ -529,10 +530,11 @@ export default function App() {
     fetch("/api/workspaces")
       .then((res) => res.json())
       .then((data) => {
-        setWorkspacesList(data);
-        if (data.length > 0) {
-          const targetId = activeWorkspaceId || currentWorkspace?.id || data[0].id;
-          const found = data.find((w: any) => w.id === targetId) || data[0];
+        const safeData = Array.isArray(data) ? data : [];
+        setWorkspacesList(safeData);
+        if (safeData.length > 0) {
+          const targetId = activeWorkspaceId || currentWorkspace?.id || safeData[0].id;
+          const found = safeData.find((w: any) => w.id === targetId) || safeData[0];
           setCurrentWorkspace(found);
         }
       })
@@ -554,17 +556,18 @@ export default function App() {
       fetch("/api/projects")
         .then((res) => res.json())
         .then((data) => {
+          const safeData = Array.isArray(data) ? data : [];
           setProjectsList((prevList) => {
-            const listChanged = prevList.length !== data.length || 
-                                prevList.some((p, idx) => !isSameProject(p, data[idx]));
-            return listChanged ? data : prevList;
+            const listChanged = prevList.length !== safeData.length || 
+                                prevList.some((p, idx) => !isSameProject(p, safeData[idx]));
+            return listChanged ? safeData : prevList;
           });
           
-          if (data.length > 0) {
+          if (safeData.length > 0) {
             setCurrentProject((prev) => {
-              if (!prev) return data[0];
-              const updated = data.find((p: any) => p.id === prev.id);
-              if (!updated) return data[0]; // fallback if currently selected is gone
+              if (!prev) return safeData[0];
+              const updated = safeData.find((p: any) => p.id === prev.id);
+              if (!updated) return safeData[0]; // fallback if currently selected is gone
               if (isSameProject(prev, updated)) {
                 return prev; // keep reference to prevent unnecessary updates
               }
@@ -572,12 +575,14 @@ export default function App() {
             });
           } else {
             setCurrentProject(null);
+            setLoading(false);
           }
           setIsInitializing(false);
         })
         .catch((err) => {
           console.error("Critical error bootstrapping initial parameters", err);
           setIsInitializing(false);
+          setLoading(false);
         });
     };
 
@@ -594,7 +599,7 @@ export default function App() {
 
     setLoading(true);
     const projId = currentProject.id;
-
+    
     // Fetch dependencies in parallel safely including Vortex Proxy Shield
     Promise.all([
       fetch(`/api/projects/${projId}/env`).then((res) => res.json()),
@@ -604,11 +609,15 @@ export default function App() {
       fetch(`/api/projects/${projId}/shield/threats`).then((res) => res.json()),
     ])
       .then(([envs, domains, deps, shield, threats]) => {
-        setEnvVarsList(envs);
-        setDomainsList(domains);
-        setProjectDeployments(deps);
-        setShieldConfig(shield);
-        setShieldIncidents(threats.incidents || []);
+        const safeEnvs = Array.isArray(envs) ? envs : [];
+        const safeDomains = Array.isArray(domains) ? domains : [];
+        const safeDeps = Array.isArray(deps) ? deps : [];
+        
+        setEnvVarsList(safeEnvs);
+        setDomainsList(safeDomains);
+        setProjectDeployments(safeDeps);
+        setShieldConfig(shield || {});
+        setShieldIncidents(threats?.incidents || []);
 
         // Load new Monaco Console features
         fetchDbTables(projId);
@@ -620,11 +629,11 @@ export default function App() {
         fetchEnvironments(projId);
 
         // Map actively selected deployment if exists
-        const foundActive = deps.find((d: Deployment) => d.id === currentProject.activeDeploymentId);
+        const foundActive = safeDeps.find((d: Deployment) => d.id === currentProject.activeDeploymentId);
         if (foundActive) {
           setActiveDeployment(foundActive);
-        } else if (deps.length > 0) {
-          setActiveDeployment(deps[0]);
+        } else if (safeDeps.length > 0) {
+          setActiveDeployment(safeDeps[0]);
         } else {
           setActiveDeployment(null);
         }
@@ -646,15 +655,16 @@ export default function App() {
       fetch(`/api/projects/${projId}/deployments`)
         .then((res) => res.json())
         .then((deps) => {
+          const safeDeps = Array.isArray(deps) ? deps : [];
           setProjectDeployments((prevDeps) => {
-            const isSame = prevDeps.length === deps.length && 
-                           prevDeps.every((d, i) => d.id === deps[i].id && d.status === deps[i].status && d.commitMessage === deps[i].commitMessage);
+            const isSame = prevDeps.length === safeDeps.length && 
+                           prevDeps.every((d, i) => d.id === safeDeps[i].id && d.status === safeDeps[i].status && d.commitMessage === safeDeps[i].commitMessage);
             if (isSame) return prevDeps;
             
             setActiveDeployment((prevActive) => {
-              if (!prevActive && deps.length > 0) return deps[0];
+              if (!prevActive && safeDeps.length > 0) return safeDeps[0];
               if (prevActive) {
-                const matched = deps.find((d: Deployment) => d.id === prevActive.id);
+                const matched = safeDeps.find((d: Deployment) => d.id === prevActive.id);
                 if (matched && (matched.status !== prevActive.status || matched.commitMessage !== prevActive.commitMessage)) {
                   return matched;
                 }
@@ -662,7 +672,7 @@ export default function App() {
               return prevActive;
             });
             
-            return deps;
+            return safeDeps;
           });
         })
         .catch((err) => console.error("Error polling deployments:", err));
@@ -671,9 +681,10 @@ export default function App() {
       fetch(`/api/projects/${projId}/domains`)
         .then((res) => res.json())
         .then((doms) => {
+          const safeDoms = Array.isArray(doms) ? doms : [];
           setDomainsList((prevDoms) => {
-            const isSame = prevDoms.length === doms.length && prevDoms.every((d, i) => d === doms[i]);
-            return isSame ? prevDoms : doms;
+            const isSame = prevDoms.length === safeDoms.length && prevDoms.every((d, i) => d === safeDoms[i]);
+            return isSame ? prevDoms : safeDoms;
           });
         })
         .catch((err) => console.error("Error polling domains:", err));
@@ -682,9 +693,10 @@ export default function App() {
       fetch(`/api/projects/${projId}/database/tables`)
         .then((res) => res.json())
         .then((tables) => {
+          const safeTables = Array.isArray(tables) ? tables : [];
           setDbTables((prevTables) => {
-            const isSame = prevTables.length === tables.length && prevTables.every((t, i) => t.name === tables[i].name);
-            return isSame ? prevTables : tables;
+            const isSame = prevTables.length === safeTables.length && prevTables.every((t, i) => t.name === safeTables[i].name);
+            return isSame ? prevTables : safeTables;
           });
         })
         .catch((err) => console.error("Error polling database tables:", err));
@@ -693,7 +705,7 @@ export default function App() {
       fetch(`/api/projects/${projId}/audit-logs`)
         .then((res) => res.json())
         .then((logs) => {
-          setAuditLogs(logs);
+          setAuditLogs(Array.isArray(logs) ? logs : []);
         })
         .catch((err) => console.error("Error polling audit logs:", err));
 
@@ -701,7 +713,7 @@ export default function App() {
       fetch(`/api/projects/${projId}/env`)
         .then((res) => res.json())
         .then((envs) => {
-          setEnvVarsList(envs);
+          setEnvVarsList(Array.isArray(envs) ? envs : []);
         })
         .catch((err) => console.error("Error polling env vars:", err));
 
@@ -709,7 +721,7 @@ export default function App() {
       fetch(`/api/projects/${projId}/database/services`)
         .then((res) => res.json())
         .then((services) => {
-          setDatabaseServices(services);
+          setDatabaseServices(Array.isArray(services) ? services : []);
         })
         .catch((err) => console.error("Error polling database services:", err));
     };
@@ -845,7 +857,7 @@ export default function App() {
   };
 
   // Handler: Trigger incremental hot-deployments from Settings / Deployments history
-  const triggerManualRedeplay = async () => {
+  const triggerManualDeploy = async () => {
     if (!currentProject) return;
 
     setIsDeployingNew(true);
@@ -1294,13 +1306,14 @@ export default function App() {
 
         {/* Global Navigation Tabs header */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
-          {(["projects", "metrics", "database", "auth", "apis", "shield", "mcp", "composio", "agent", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
+          {(["projects", "metrics", "database", "auth", "serverless", "apis", "shield", "mcp", "composio", "agent", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
             const isActive = activeTab === tab;
             let displayString = tab.toUpperCase();
             if (tab === "projects") displayString = "Deployments";
             if (tab === "metrics") displayString = "Metrics";
             if (tab === "database") displayString = "Monaco DB";
             if (tab === "auth") displayString = "Native Auth";
+            if (tab === "serverless") displayString = "Edge Functions";
             if (tab === "apis") displayString = "API Gateway";
             if (tab === "shield") displayString = "WAF Shield";
             if (tab === "mcp") displayString = "MCP Connect";
@@ -1352,7 +1365,35 @@ export default function App() {
           </div>
         )}
 
-        {!loading && currentProject && (
+        {!loading && projectsList.length === 0 && (
+          <div className="py-32 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="relative">
+              <div className="absolute -inset-4 bg-emerald-500/10 rounded-full blur-2xl animate-pulse"></div>
+              <div className="relative h-20 w-20 bg-neutral-900 border border-neutral-800 rounded-3xl flex items-center justify-center shadow-2xl">
+                <Plus className="h-10 w-10 text-emerald-400" />
+              </div>
+            </div>
+            
+            <div className="space-y-3 max-w-sm">
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">No Projects Found</h2>
+              <p className="text-neutral-500 text-sm leading-relaxed font-mono">
+                Your cloud edge network is ready, but you haven't deployed any nodes yet. 
+                Import a repository to begin routing traffic.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsNewProjectModelOpen(true)}
+              className="group relative flex items-center gap-3 bg-white text-neutral-950 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition duration-200 shadow-xl"
+            >
+              <Github className="h-5 w-5" />
+              <span>Deploy First Node</span>
+              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        )}
+
+        {!loading && projectsList.length > 0 && currentProject && (
           <div className="space-y-8 animate-in fade-in duration-200">
             
             {/* Active Project Heading Bar */}
@@ -1392,7 +1433,7 @@ export default function App() {
               ) : (
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={triggerManualRedeplay}
+                    onClick={triggerManualDeploy}
                     className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-200 text-xs font-semibold font-mono h-9 rounded-lg px-4 flex items-center gap-1.5 transition shadow"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
@@ -2080,7 +2121,7 @@ export default function App() {
                     </div>
 
                     <DeploymentLogConsole
-                      logs={activeDeployment.buildLogs}
+                      logs={activeDeployment.buildLogs || []}
                       isBuilding={isDeployingNew}
                     />
                   </div>
@@ -3799,6 +3840,13 @@ export default function App() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* TAB: Serverless Edge Functions */}
+            {activeTab === "serverless" && currentProject && (
+              <div className="animate-in fade-in duration-200">
+                <ServerlessPlayground projectId={currentProject.id} />
               </div>
             )}
 
@@ -5763,47 +5811,13 @@ console.log(result.content[0].text);`);
                     Service Resource Metrics History
                   </h3>
                 </div>
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-sm p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* CPU Graph */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-xs text-neutral-400 font-mono font-bold tracking-wider">
-                        <span>CPU USAGE (vCPU)</span>
-                        <span className="text-emerald-400">{Math.round(currentCpu)}%</span>
-                      </div>
-                      <div className="h-32 bg-neutral-950 border border-neutral-850 rounded-lg p-2 flex items-end gap-1">
-                        {systemMetrics.map((point, i) => {
-                          const height = Math.max(2, Math.min(100, point.cpu));
-                          return (
-                            <div key={`cpu-${i}`} className="w-full bg-indigo-500/30 rounded-t" style={{ height: `${height}%` }}>
-                              <div className="w-full bg-indigo-400 rounded-t border-t border-indigo-300" style={{ height: '4px' }}></div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {/* RAM Graph */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-xs text-neutral-400 font-mono font-bold tracking-wider">
-                        <span>MEMORY ALLOCATION</span>
-                        <span className="text-blue-400">{Math.round(currentRam)} MB</span>
-                      </div>
-                      <div className="h-32 bg-neutral-950 border border-neutral-850 rounded-lg p-2 flex items-end gap-1">
-                        {systemMetrics.map((point, i) => {
-                          // Try to scale Ram (if it's huge we will just cap the height or use a dynamic max)
-                          // Assuming max 4000MB for visual scaling locally
-                          const maxRam = 4000;
-                          const height = Math.max(2, Math.min(100, (point.ram / maxRam) * 100));
-                          return (
-                            <div key={`ram-${i}`} className="w-full bg-blue-500/30 rounded-t" style={{ height: `${height}%` }}>
-                              <div className="w-full bg-blue-400 rounded-t border-t border-blue-300" style={{ height: '4px' }}></div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AnalyticsCharts 
+                  metrics={analyticsMetrics} 
+                  vitals={analyticsVitals} 
+                  isSpikeActive={isTrafficSpikeActive}
+                  onToggleSpike={() => setIsTrafficSpikeActive(!isTrafficSpikeActive)}
+                  isLoading={false}
+                />
               </div>
             )}
 

@@ -263,3 +263,41 @@ curl -X POST http://localhost:3000/api/vortex/agent/deploy \
 ```
 
 This returns a JSON payload with a direct, working URL to preview your newly deployed website!
+
+---
+
+## 📱 Termux & Linux Hosting Guide (Hardware Optimized)
+
+Vortex is designed to automatically adapt its resource footprint based on the available hardware. This allows you to host it reliably on low-end devices like Android phones via Termux, as well as high-end Linux servers.
+
+### Hosting on Linux / VPS
+
+1. Clone the repository and install dependencies:
+   ```bash
+   npm install
+   ```
+2. By default, the server binds to port `3000`. You can easily map it to port `80` (HTTP) or `443` (HTTPS) using your system's reverse proxy (like Nginx), or specify a custom port using the `VORTEX_PORT` environment variable:
+   ```bash
+   export VORTEX_PORT=8080
+   npm run start
+   ```
+
+### Hosting on Termux (Android Mobile)
+
+1. **Install Termux** from F-Droid (the Google Play Store version is deprecated).
+2. Update packages and install Node.js and Git:
+   ```bash
+   pkg update -y && pkg upgrade -y
+   pkg install nodejs git -y
+   ```
+3. Clone the repo and install dependencies:
+   ```bash
+   npm install
+   ```
+4. Define a custom port (Android requires ports > 1024 without root) and start the server:
+   ```bash
+   export VORTEX_PORT=8080
+   npm run dev
+   ```
+
+*Note: When running on a low-end environment (less than 3GB RAM or 2 CPU cores), Vortex automatically switches to the `bad` hardware optimization profile, reducing background metrics intervals and simulated compiler blocking latency to prevent Node.js event loop hangs.*
