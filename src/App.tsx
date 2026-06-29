@@ -1305,53 +1305,55 @@ export default function App() {
         </div>
 
         {/* Global Navigation Tabs header */}
-        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
-          {(["projects", "metrics", "database", "auth", "serverless", "apis", "shield", "mcp", "composio", "agent", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
-            const isActive = activeTab === tab;
-            let displayString = tab.toUpperCase();
-            if (tab === "projects") displayString = "Deployments";
-            if (tab === "metrics") displayString = "Metrics";
-            if (tab === "database") displayString = "Monaco DB";
-            if (tab === "auth") displayString = "Native Auth";
-            if (tab === "serverless") displayString = "Edge Functions";
-            if (tab === "apis") displayString = "API Gateway";
-            if (tab === "shield") displayString = "WAF Shield";
-            if (tab === "mcp") displayString = "MCP Connect";
-            if (tab === "composio") displayString = "Integrations";
-            if (tab === "agent") displayString = "Autopilot Console";
-            if (tab === "teams") displayString = "Workspaces";
-            if (tab === "settings") displayString = "Configs";
-            if (tab === "selfhost") displayString = "Self-Host Ops";
-            if (tab === "errors") displayString = "Error Handling";
+        {!loading && projectsList.length > 0 && currentProject && (
+          <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-neutral-900 flex gap-6 text-xs overflow-auto select-none no-scrollbar">
+            {(["projects", "metrics", "database", "auth", "serverless", "apis", "shield", "mcp", "composio", "agent", "teams", "settings", "selfhost", "errors"] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              let displayString = tab.toUpperCase();
+              if (tab === "projects") displayString = "Deployments";
+              if (tab === "metrics") displayString = "Metrics";
+              if (tab === "database") displayString = "Monaco DB";
+              if (tab === "auth") displayString = "Native Auth";
+              if (tab === "serverless") displayString = "Edge Functions";
+              if (tab === "apis") displayString = "API Gateway";
+              if (tab === "shield") displayString = "WAF Shield";
+              if (tab === "mcp") displayString = "MCP Connect";
+              if (tab === "composio") displayString = "Integrations";
+              if (tab === "agent") displayString = "Autopilot Console";
+              if (tab === "teams") displayString = "Workspaces";
+              if (tab === "settings") displayString = "Configs";
+              if (tab === "selfhost") displayString = "Self-Host Ops";
+              if (tab === "errors") displayString = "Error Handling";
 
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`py-3.5 font-mono tracking-wider font-semibold border-b-2 transition duration-150 flex items-center gap-1.5 focus:outline-none whitespace-nowrap ${
-                  isActive
-                    ? "border-neutral-200 text-white"
-                    : "border-transparent text-neutral-500 hover:text-neutral-300"
-                }`}
-              >
-                {tab === "projects" && <FolderOpen className="h-3.5 w-3.5" />}
-                {tab === "metrics" && <Activity className="h-3.5 w-3.5" />}
-                {tab === "database" && <Database className="h-3.5 w-3.5" />}
-                {tab === "auth" && <Users className="h-3.5 w-3.5" />}
-                {tab === "apis" && <Key className="h-3.5 w-3.5" />}
-                {tab === "shield" && <Shield className="h-3.5 w-3.5" />}
-                {tab === "mcp" && <Workflow className="h-3.5 w-3.5 text-emerald-400" />}
-                {tab === "composio" && <Workflow className="h-3.5 w-3.5" />}
-                {tab === "agent" && <Cpu className="h-3.5 w-3.5 text-indigo-400" />}
-                {tab === "teams" && <Terminal className="h-3.5 w-3.5" />}
-                {tab === "settings" && <Settings className="h-3.5 w-3.5" />}
-                {tab === "selfhost" && <Server className="h-3.5 w-3.5" />}
-                {tab === "errors" && <AlertTriangle className="h-3.5 w-3.5" />}
-                {displayString}
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as any)}
+                  className={`py-3.5 font-mono tracking-wider font-semibold border-b-2 transition duration-150 flex items-center gap-1.5 focus:outline-none whitespace-nowrap ${
+                    isActive
+                      ? "border-neutral-200 text-white"
+                      : "border-transparent text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  {tab === "projects" && <FolderOpen className="h-3.5 w-3.5" />}
+                  {tab === "metrics" && <Activity className="h-3.5 w-3.5" />}
+                  {tab === "database" && <Database className="h-3.5 w-3.5" />}
+                  {tab === "auth" && <Users className="h-3.5 w-3.5" />}
+                  {tab === "apis" && <Key className="h-3.5 w-3.5" />}
+                  {tab === "shield" && <Shield className="h-3.5 w-3.5" />}
+                  {tab === "mcp" && <Workflow className="h-3.5 w-3.5 text-emerald-400" />}
+                  {tab === "composio" && <Workflow className="h-3.5 w-3.5" />}
+                  {tab === "agent" && <Cpu className="h-3.5 w-3.5 text-indigo-400" />}
+                  {tab === "teams" && <Terminal className="h-3.5 w-3.5" />}
+                  {tab === "settings" && <Settings className="h-3.5 w-3.5" />}
+                  {tab === "selfhost" && <Server className="h-3.5 w-3.5" />}
+                  {tab === "errors" && <AlertTriangle className="h-3.5 w-3.5" />}
+                  {displayString}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {/* Main Container Sandbox body */}
@@ -1396,68 +1398,68 @@ export default function App() {
         {!loading && projectsList.length > 0 && currentProject && (
           <div className="space-y-8 animate-in fade-in duration-200">
             
-            {/* Active Project Heading Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-900 pb-5">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black text-neutral-100 uppercase tracking-tight">{currentProject.name}</h1>
-                  <span className="text-[10px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-400 px-2.5 py-0.5 rounded font-mono uppercase">
-                    {currentProject.framework}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 text-xs font-mono text-neutral-500">
-                  <span className="flex items-center gap-1">
-                    <Github className="h-3.5 w-3.5" />
-                    <a
-                      href={`https://github.com/${currentProject.repo}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:text-neutral-300 transition"
-                    >
-                      {currentProject.repo}
-                    </a>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <GitBranch className="h-3.5 w-3.5" />
-                    <span>{currentProject.branch}</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Deployment Action Status Tag */}
-              {isDeployingNew ? (
-                <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-xl text-xs font-mono text-neutral-300 animate-pulse">
-                  <RefreshCw className="h-4.5 w-4.5 animate-spin text-neutral-400" />
-                  <span>Isolate running: Triggering compilation pipeline...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={triggerManualDeploy}
-                    className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-200 text-xs font-semibold font-mono h-9 rounded-lg px-4 flex items-center gap-1.5 transition shadow"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    TRIGGER DEPLOY
-                  </button>
-                  {activeDeployment && (
-                    <a
-                      href={`/api/preview/${activeDeployment.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="bg-white hover:bg-neutral-200 text-neutral-900 text-xs font-semibold font-mono h-9 rounded-lg px-4 flex items-center gap-1.5 transition shadow"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      LIVE ADDR
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* TAB 1: Projects Overview (Live Preview Canvas, Details & Deployment Information) */}
             {activeTab === "projects" && (
               <div className="space-y-6">
                 
+                {/* Active Project Heading Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-900 pb-5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl font-black text-neutral-100 uppercase tracking-tight">{currentProject.name}</h1>
+                      <span className="text-[10px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-400 px-2.5 py-0.5 rounded font-mono uppercase">
+                        {currentProject.framework}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs font-mono text-neutral-500">
+                      <span className="flex items-center gap-1">
+                        <Github className="h-3.5 w-3.5" />
+                        <a
+                          href={`https://github.com/${currentProject.repo}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-neutral-300 transition"
+                        >
+                          {currentProject.repo}
+                        </a>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <GitBranch className="h-3.5 w-3.5" />
+                        <span>{currentProject.branch}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Deployment Action Status Tag */}
+                  {isDeployingNew ? (
+                    <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-xl text-xs font-mono text-neutral-300 animate-pulse">
+                      <RefreshCw className="h-4.5 w-4.5 animate-spin text-neutral-400" />
+                      <span>Isolate running: Triggering compilation pipeline...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={triggerManualDeploy}
+                        className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-200 text-xs font-semibold font-mono h-9 rounded-lg px-4 flex items-center gap-1.5 transition shadow"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        TRIGGER DEPLOY
+                      </button>
+                      {activeDeployment && (
+                        <a
+                          href={`/api/preview/${activeDeployment.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-white hover:bg-neutral-200 text-neutral-900 text-xs font-semibold font-mono h-9 rounded-lg px-4 flex items-center gap-1.5 transition shadow"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          LIVE ADDR
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Vortex Sub-Tab Bar Navigation */}
                 <div className="flex items-center gap-1.5 border-b border-neutral-900 pb-3 mb-6 font-mono text-[11px] overflow-x-auto no-scrollbar">
                   {[

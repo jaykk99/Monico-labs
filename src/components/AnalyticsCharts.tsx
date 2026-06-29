@@ -56,12 +56,12 @@ export default function AnalyticsCharts({
 
   // Convert points to SVG SVGPath strings
   const getPathString = (points: { x: number; y: number }[]) => {
-    if (points.length === 0) return "";
+    if (points.length === 0) return "M 0 0";
     return `M ${points[0].x} ${points[0].y} ` + points.slice(1).map((p) => `L ${p.x} ${p.y}`).join(" ");
   };
 
   const getAreaPathString = (points: { x: number; y: number }[]) => {
-    if (points.length === 0) return "";
+    if (points.length === 0) return "M 0 0";
     const linePath = getPathString(points);
     return `${linePath} L ${points[points.length - 1].x} ${height - 5} L ${points[0].x} ${height - 5} Z`;
   };
