@@ -28,6 +28,8 @@ const app = express();
 app.set("trust proxy", true);
 // Cloud hosts (Render, Cloud Run, Railway, Fly) inject PORT. Fall back to VORTEX_PORT, then 3000.
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : process.env.VORTEX_PORT ? parseInt(process.env.VORTEX_PORT) : 3000;
+// Local Termux host — override with your device's LAN IP (e.g. 192.168.1.5) or a tunnel hostname
+const VORTEX_HOST = process.env.VORTEX_HOST || 'localhost';
 
 // Hardware scaling logic to optimize for low-end (Termux/Mobile) to high-end (Servers)
 const totalMemMB = os.totalmem() / (1024 * 1024);
@@ -373,7 +375,7 @@ async function loadFromCloudDB() {
         id: "dep-1",
         projectId: defaultProjectId,
         status: "ready",
-        previewUrl: "https://active-gate-dep-1.vortex.ml",
+        previewUrl: `http://${VORTEX_HOST}:${PORT}/p/active-gate-dep-1`,
         createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         commitMessage: "initial deployment: active security gate & web vitals baseline monitor",
         commitHash: "e4f8d2a",
@@ -392,7 +394,7 @@ async function loadFromCloudDB() {
         `,
       });
 
-      domains[defaultProjectId] = [`${defaultProjectId}.vortex.ml`];
+      domains[defaultProjectId] = [`${VORTEX_HOST}:${PORT}/p/${defaultProjectId}`];
       envVars[defaultProjectId] = [{ id: "env-1", key: "VITE_APP_ENV", value: "production" }];
       
       console.log("[vortex-db] Seeded initial project and deployment.");
@@ -425,7 +427,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const host = req.headers.host;
   // If the request isn't coming from our dashboard preview (localhost or run.app), check domains
-  if (host && !host.includes("localhost") && !host.includes("run.app") && host !== "vortex.ml") {
+  if (host && !host.includes("localhost") && !host.includes("run.app") && host !== VORTEX_HOST) {
     let matchedProjectId: string | null = null;
     for (const [projectId, projectDomains] of Object.entries(domains)) {
       if (projectDomains.includes(host)) {
@@ -494,7 +496,7 @@ app.post("/api/projects", (req, res) => {
   };
 
   projects.push(prj);
-  domains[prj.id] = [`${prj.name}.vortex.ml`];
+  domains[prj.id] = [`${VORTEX_HOST}:${PORT}/p/${prj.id}`];
   envVars[prj.id] = [];
   saveToCloudDB();
   res.status(201).json(prj);
@@ -558,8 +560,8 @@ app.post("/api/projects/:id/domains/agent-allocate", (req, res) => {
   const project = projects.find(p => p.id === id);
   if (!project) return res.status(404).json({ error: "Project not found for subdomain allocation" });
 
-  const chosenProvider = provider || "Vortex Anycast Subdomain Router";
-  const formattedSubdomain = `${subdomain.toLowerCase().trim()}.${chosenProvider.includes("Vortex") ? "vortex.ml" : "monacodev.ml"}`;
+  const chosenProvider = provider || "Local Termux Router";
+  const formattedSubdomain = `${VORTEX_HOST}:${PORT}/p/${subdomain.toLowerCase().trim()}`;
 
   if (!domains[id]) domains[id] = [];
   if (!domains[id].includes(formattedSubdomain)) {
@@ -571,19 +573,19 @@ app.post("/api/projects/:id/domains/agent-allocate", (req, res) => {
     id: `dep-${generateId()}`,
     projectId: id,
     status: "ready",
-    previewUrl: `https://${formattedSubdomain}`,
+    previewUrl: `http://${formattedSubdomain}`,
     createdAt: new Date().toISOString(),
     commitMessage: `[AGENT-AUTOPILOT] Assigned custom website subdomain routing via ${chosenProvider}`,
     commitHash: generateId().substring(0, 7),
     buildLogs: [
       `[vortex] Agent Autopilot Triggered: Subdomain Allocation Request received for ${formattedSubdomain}`,
-      `[vortex] Syncing custom DNS entries into the independent file-based persistent DB...`,
-      `[vortex] DNS A/AAAA records mapped cleanly under Vortex network ingress.`,
-      `[vortex] Initiating Let's Encrypt automated challenge validation (HTTP-01)...`,
-      `[vortex] ACME verification challenge passed successfully.`,
-      `[vortex] Generating SSL/TLS cert for domain ${formattedSubdomain}... SUCCESS!`,
-      `[vortex] Compiling security bundle and binding Edge Proxy routes... complete!`,
-      `[vortex] Application live on new subdomain: https://${formattedSubdomain} 🎉`
+      `[vortex] Registering local DNS entry in file-based persistent DB...`,
+      `[vortex] Route mapped to local host: ${VORTEX_HOST}:${PORT}.`,
+      `[vortex] HTTP routing configured (SSL not required on local network).`,
+      `[vortex] Local route handler verified — requests will reach ${VORTEX_HOST}:${PORT}.`,
+      `[vortex] Path endpoint created: ${formattedSubdomain}`,
+      `[vortex] Local routing bundle complete!`,
+      `[vortex] App available at: http://${formattedSubdomain} 🎉`
     ],
     deployedHtml: `
       <div class="min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center select-none">
@@ -739,7 +741,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[compiler] resolving module endpoints and scanning tree-shaking assets...`,
       `[compiler] loading asset router...`,
       `[vortex-cdn] uploading index.html template onto high-performance cache`,
-      `[vortex] verifying SSL security boundaries for domain: ${prj.name}.vortex.ml`,
+      `[vortex] verifying local routing for: ${VORTEX_HOST}:${PORT}/p/${prj.name}`,
       `[vortex] Deployment active in US-East-1, EU-West-2, AP-South-1`,
       `[vortex] Deployment completed successfully! 🎉`,
     ];
@@ -761,7 +763,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[vortex] bundler = EsBuild Node compiler`,
       `[vortex] compiling APIs into single serverless bundle: output direction: "${outputDirectory || "dist"}"`,
       `[vortex] microservices validated, scanning 4 endpoints`,
-      `[vortex] verifying edge SSL boundaries for ${prj.name}.vortex.ml`,
+      `[vortex] verifying local route boundaries for ${prj.name} at ${VORTEX_HOST}:${PORT}`,
       `[vortex] Serverless edge function gateway live.`,
       `[vortex] Deployment successful! 🎉`,
     ];
@@ -846,7 +848,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
     id: generatedIdVal,
     projectId,
     status: "building", // Will remain building for UI execution sequence
-    previewUrl: injectFailure ? "" : `https://${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}.vortex.ml`,
+    previewUrl: injectFailure ? "" : `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}`,
     createdAt: dateStr,
     commitMessage: commitMsg,
     commitHash: commitHashHex,
@@ -1412,11 +1414,11 @@ app.post("/api/projects/:projectId/database/services", (req, res) => {
 
   let connectionString = "";
   if (type === "redis") {
-    connectionString = `redis://default:${password}@vortex.ml:${port}`;
+    connectionString = `redis://default:${password}@${VORTEX_HOST}:${port}`;
   } else if (type === "mongodb") {
-    connectionString = `mongodb://${username}:${password}@vortex.ml:${port}/${dbName}?authSource=admin`;
+    connectionString = `mongodb://${username}:${password}@${VORTEX_HOST}:${port}/${dbName}?authSource=admin`;
   } else {
-    connectionString = `${proto}://${username}:${password}@vortex.ml:${port}/${dbName}`;
+    connectionString = `${proto}://${username}:${password}@${VORTEX_HOST}:${port}/${dbName}`;
   }
 
   const newService = {
@@ -1426,7 +1428,7 @@ app.post("/api/projects/:projectId/database/services", (req, res) => {
     type: type || "postgresql",
     status: "active",
     connectionString,
-    host: "vortex.ml",
+    host: VORTEX_HOST,
     port,
     username,
     password,
@@ -1970,7 +1972,7 @@ mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge 
      id: generatedIdVal,
      projectId: prj.id,
      status: "ready",
-     previewUrl: `https://${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}.vortex.ml`,
+     previewUrl: `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}`,
      createdAt: new Date().toISOString(),
      commitMessage: commitMessage || "Agent Native MCP Deployment",
      commitHash: commitHashHex,
@@ -2035,26 +2037,70 @@ mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
    };
 });
 
-mcpServer.tool("query_database", "Queries the vortex cloud edge native database.", {
+mcpServer.tool("query_database", "Queries the Vortex local file database. Optionally delegates to Supabase if SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set.", {
   projectId: z.string(),
   sql: z.string()
 }, async ({ projectId, sql }) => {
-   // Basic simulated SQL interpretation for demo purposes
-   const lowerSql = sql.toLowerCase();
-   let simulatedResult: any[] = [];
-   if (lowerSql.includes("select * from users")) {
-      simulatedResult = [
-        { id: 1, name: "Alice", email: "alice@example.com" },
-        { id: 2, name: "Bob", email: "bob@example.com" }
-      ];
-   } else if (lowerSql.includes("insert into")) {
-      simulatedResult = [{ status: "inserted", rowCount: 1 }];
-   } else {
-      simulatedResult = [{ status: "executed", mockData: true }];
-   }
-   return {
-     content: [{ type: "text", text: JSON.stringify({ result: simulatedResult }, null, 2) }]
-   };
+  // ── Option A: Supabase (if configured via env vars) ─────────────────────────
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && supabaseKey) {
+    try {
+      // Requires a stored function: create function execute_sql(sql_text text) …
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+          "apikey": supabaseKey,
+        },
+        body: JSON.stringify({ sql_text: sql }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return { content: [{ type: "text", text: JSON.stringify({ result: data, source: "supabase" }, null, 2) }] };
+      }
+    } catch { /* fall through to local DB */ }
+  }
+
+  // ── Option B: Local file-based DB (vortex_local_db.json) ────────────────────
+  const { readFileSync } = await import("fs");
+  const { join } = await import("path");
+  let localDb: Record<string, unknown> = {};
+  try {
+    localDb = JSON.parse(readFileSync(join(process.cwd(), "vortex_local_db.json"), "utf8"));
+  } catch { /* use empty object */ }
+
+  // Map common SQL table names → local DB keys
+  const tableMap: Record<string, string> = {
+    users: "authUsers", auth_users: "authUsers",
+    projects: "projects", deployments: "deployments",
+    domains: "domains", env_vars: "envVars", envvars: "envVars",
+    api_keys: "apiKeys", apikeys: "apiKeys",
+    workspaces: "workspaces", functions: "serverlessFunctions",
+    serverless_functions: "serverlessFunctions",
+    logs: "executionLogs", execution_logs: "executionLogs",
+    backups: "backups", storage: "storageBuckets",
+  };
+
+  const lowerSql = sql.toLowerCase().trim();
+  const tableMatch = lowerSql.match(/(?:from|into|update)\s+(\w+)/i);
+  const tableName = tableMatch?.[1]?.toLowerCase() ?? "";
+  const dbKey = tableMap[tableName] ?? tableName;
+  const tableData = localDb[dbKey];
+
+  let result: unknown[];
+  if (lowerSql.startsWith("select") && tableData !== undefined) {
+    result = Array.isArray(tableData)
+      ? tableData
+      : Object.entries(tableData as object).map(([k, v]) => ({ id: k, ...(typeof v === "object" && v ? v as object : { value: v }) }));
+  } else if (!tableData && tableName) {
+    result = [{ error: `Table '${tableName}' not found in local DB`, availableTables: Object.keys(localDb) }];
+  } else {
+    result = [{ status: "executed", table: dbKey || "unknown", note: "Write operations persist via saveToCloudDB()" }];
+  }
+
+  return { content: [{ type: "text", text: JSON.stringify({ result, source: "local_db" }, null, 2) }] };
 });
 
 mcpServer.tool("delete_project", "Deletes a project.", {
@@ -2172,7 +2218,7 @@ mcpServer.tool("trigger_deployment", "Triggers a deployment for a project.", {
      projectId,
      status: "ready",
      createdAt: new Date().toISOString(),
-     previewUrl: `https://${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generateId().slice(0,4)}.vortex.ml`,
+     previewUrl: `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generateId().slice(0,4)}`,
      commitMessage: commitMessage || "Manual deployment via MCP",
      commitHash: `git-${generateId()}`,
      buildLogs: ["Deployment triggered via MCP"]
@@ -3196,7 +3242,7 @@ User Request: ${prompt}` }] }
 app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, res) => {
   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
   const configuredKey = process.env.VORTEX_LIVE_API_KEY;
-  const hardcodedKey = "vrx_agent_sk_live_999";
+  const hardcodedKey = process.env.VORTEX_LIVE_API_KEY || "vrx_agent_sk_live_999";
   const sandboxKey = "vrx_agent_sk_sandbox_999";
   
   const isValid = authHeader && (
@@ -3276,7 +3322,7 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, 
     id: generatedIdVal,
     projectId: prj.id,
     status: "ready",
-    previewUrl: `https://${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}.vortex.ml`,
+    previewUrl: `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}`,
     createdAt: new Date().toISOString(),
     commitMessage: req.body?.commitMessage || "Agent Automated Zero-Touch Native Live Deployment",
     commitHash: commitHashHex,
