@@ -26,7 +26,8 @@ const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const app = express();
 app.set("trust proxy", true);
-const PORT = process.env.VORTEX_PORT ? parseInt(process.env.VORTEX_PORT) : 3000;
+// Cloud hosts (Render, Cloud Run, Railway, Fly) inject PORT. Fall back to VORTEX_PORT, then 3000.
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : process.env.VORTEX_PORT ? parseInt(process.env.VORTEX_PORT) : 3000;
 
 // Hardware scaling logic to optimize for low-end (Termux/Mobile) to high-end (Servers)
 const totalMemMB = os.totalmem() / (1024 * 1024);
@@ -3338,9 +3339,16 @@ async function startServer() {
   }
 
   async function startTunnel() {
+    // Skip the public tunnel when running behind a real cloud URL (Render/Cloud Run/Railway/Fly).
+    // Enable it for self-hosting (VPS / Termux) with ENABLE_TUNNEL=true.
+    const tunnelEnabled = process.env.ENABLE_TUNNEL === "true" || (!process.env.PORT && !process.env.RENDER && !process.env.K_SERVICE);
+    if (!tunnelEnabled) {
+      console.log("[TUNNEL] Skipped — using platform public URL (set ENABLE_TUNNEL=true to force localtunnel).");
+      return;
+    }
     try {
-      console.log("[TUNNEL] Starting Localtunnel on port 3000...");
-      const tunnel = await localtunnel({ port: 3000, subdomain: "monico-labs" });
+      console.log(`[TUNNEL] Starting Localtunnel on port ${PORT}...`);
+      const tunnel = await localtunnel({ port: PORT, subdomain: "monico-labs" });
       publicMcpUrl = tunnel.url;
       console.log(`[TUNNEL] Public unauthenticated MCP URL generated successfully: ${publicMcpUrl}`);
       
