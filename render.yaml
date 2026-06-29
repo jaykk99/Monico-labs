@@ -1,0 +1,26 @@
+# Render Blueprint for Monico Labs (Vortex Cloud Platform)
+# One-click persistent deploy — NOT Vercel. Render injects PORT automatically.
+# Deploy: https://dashboard.render.com → New → Blueprint → connect jaykk99/Monico-labs
+services:
+  - type: web
+    name: monico-labs
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Render injects PORT automatically — do not set it.
+      # Optional: set GEMINI_API_KEY for AI features.
+      - key: GEMINI_API_KEY
+        sync: false
+      # The agent live-deploy key (matches README default).
+      - key: VORTEX_LIVE_API_KEY
+        value: vrx_agent_sk_live_999
+      # Tunnel off on Render — the *.onrender.com URL is the real public URL.
+      - key: ENABLE_TUNNEL
+        value: "false"
