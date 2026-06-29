@@ -24,7 +24,7 @@
       "timestamp": "2026-06-20T14:22:45.389Z",
       "ip": "185.220.101.5",
       "country": "Sweden",
-      "flag": "🇸🇪",
+      "flag": "\ud83c\uddf8\ud83c\uddea",
       "threatType": "Cross-Site Scripting (XSS)",
       "action": "blocked",
       "query": "GET /api/comments?author_id=<script>alert(1)</script>"
@@ -34,7 +34,7 @@
       "timestamp": "2026-06-20T14:17:45.389Z",
       "ip": "45.143.203.111",
       "country": "Germany",
-      "flag": "🇩🇪",
+      "flag": "\ud83c\udde9\ud83c\uddea",
       "threatType": "SQL Injection Suspected",
       "action": "blocked",
       "query": "POST /auth/login?uname=' OR '1'='1"
@@ -366,10 +366,10 @@
   },
   "domains": {
     "proj-1": [
-      "active-gate.vortex.ml"
+      "localhost:3000/p/active-gate"
     ],
     "proj-agent-1": [
-      "monico-agent.vortex.ml"
+      "localhost:3000/p/monico-agent"
     ]
   },
   "deployments": [
@@ -387,11 +387,11 @@
         "[vortex] Running compiler script: \"vite build\"",
         "[vite] Compiling TypeScript dynamic types...",
         "[vite] Bundling assets with Rollup...",
-        "[vite] ✓ compiled in 0.8s",
+        "[vite] \u2713 compiled in 0.8s",
         "[vortex] DNS check successful: active-gate.vortex.ml validates correctly",
-        "[vortex] Deployment successful! 🎉"
+        "[vortex] Deployment successful! \ud83c\udf89"
       ],
-      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">Æ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Active Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> • Node: US-East-1\n          </div>\n        </div>\n      </div>\n    "
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">\u00c6</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Active Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> \u2022 Node: US-East-1\n          </div>\n        </div>\n      </div>\n    "
     },
     {
       "id": "dep-agent-1",
@@ -407,11 +407,11 @@
         "[vortex] Running compiler script: \"npm run build\"",
         "[vite] Compiling TypeScript dynamic types...",
         "[vite] Bundling assets with Rollup...",
-        "[vite] ✓ compiled in 1.1s",
+        "[vite] \u2713 compiled in 1.1s",
         "[vortex] DNS check successful: monico-agent.vortex.ml validates correctly",
-        "[vortex] Deployment successful! 🎉"
+        "[vortex] Deployment successful! \ud83c\udf89"
       ],
-      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">MÅ</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Monico Agent Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> • Node: US-West-2\n          </div>\n        </div>\n      </div>\n    "
+      "deployedHtml": "\n      <div class=\"min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center selection:bg-neutral-800 selection:text-white\">\n        <div class=\"max-w-md space-y-6\">\n          <div class=\"inline-flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400\">\n            <span class=\"text-lg font-bold\">M\u00c5</span>\n          </div>\n          <div class=\"space-y-2\">\n            <h2 class=\"text-xl font-black text-white uppercase tracking-tight\">Monico Agent Edge Service</h2>\n            <p class=\"text-neutral-500 text-xs\">Vortex routing completed. Your containerized serverless react application is initialized and running at the global Anycast layer.</p>\n          </div>\n          <div class=\"p-3 bg-neutral-900/60 border border-neutral-800 text-xs font-mono text-neutral-400 rounded-lg\">\n            Status: <span class=\"text-emerald-400\">ACTIVE</span> \u2022 Node: US-West-2\n          </div>\n        </div>\n      </div>\n    "
     }
   ],
   "serverlessFunctions": [
