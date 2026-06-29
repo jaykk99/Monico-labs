@@ -274,9 +274,15 @@ Vortex is designed to automatically adapt its resource footprint based on the av
 
 1. Clone the repository and install dependencies:
    ```bash
+   git clone https://github.com/jaykk99/Monico-labs.git
+   cd Monico-labs
    npm install
    ```
-2. By default, the server binds to port `3000`. You can easily map it to port `80` (HTTP) or `443` (HTTPS) using your system's reverse proxy (like Nginx), or specify a custom port using the `VORTEX_PORT` environment variable:
+2. Build the frontend and the bundled server (`npm run start` runs the compiled `dist/server.cjs`, so the build step is required):
+   ```bash
+   npm run build
+   ```
+3. By default, the server binds to port `3000`. You can easily map it to port `80` (HTTP) or `443` (HTTPS) using your system's reverse proxy (like Nginx), or specify a custom port using the `VORTEX_PORT` environment variable:
    ```bash
    export VORTEX_PORT=8080
    npm run start
@@ -288,16 +294,19 @@ Vortex is designed to automatically adapt its resource footprint based on the av
 2. Update packages and install Node.js and Git:
    ```bash
    pkg update -y && pkg upgrade -y
-   pkg install nodejs git -y
+   pkg install nodejs-lts git -y
    ```
 3. Clone the repo and install dependencies:
    ```bash
+   git clone https://github.com/jaykk99/Monico-labs.git
+   cd Monico-labs
    npm install
    ```
-4. Define a custom port (Android requires ports > 1024 without root) and start the server:
+4. Define a custom port (Android requires ports > 1024 without root) and start the server. On low-end devices, run directly with `tsx` (the `dev` script) to skip the heavier `esbuild`/`vite` production build:
    ```bash
    export VORTEX_PORT=8080
    npm run dev
    ```
+   *(On a higher-spec device you can instead run `npm run build && npm run start` for the optimized production bundle.)*
 
 *Note: When running on a low-end environment (less than 3GB RAM or 2 CPU cores), Vortex automatically switches to the `bad` hardware optimization profile, reducing background metrics intervals and simulated compiler blocking latency to prevent Node.js event loop hangs.*
