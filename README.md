@@ -4,23 +4,43 @@ Vortex is a self-contained, high-performance developer platform, integrated clou
 
 ---
 
+## ⚙️ Environment Variables & Configuration
+
+Copy `.env.example` to `.env` and set these before running the server:
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `VORTEX_HOST` | `localhost` | The hostname or LAN IP the server binds to. Set to your device's LAN IP (e.g. `192.168.1.5`) so other devices on the same network can reach it. Leave as `localhost` for local-only access. |
+| `VORTEX_PORT` | `3000` | Port the HTTP server listens on. Android/Termux requires a port > 1024 without root. |
+| `VORTEX_LIVE_API_KEY` | — | Live API key for outbound integrations. |
+| `SUPABASE_URL` | — | *(Optional)* Your Supabase project URL. When set alongside `SUPABASE_SERVICE_ROLE_KEY`, the `query_database` MCP tool will delegate SQL to Supabase first (requires an `execute_sql` stored function in your Supabase project). If unset, queries run against the local `vortex_local_db.json` file database. |
+| `SUPABASE_SERVICE_ROLE_KEY` | — | *(Optional)* Supabase service-role key. Pair with `SUPABASE_URL` to enable Supabase SQL delegation. |
+| `VRX_MCP_AUTH_TOKEN` | `vrx_agent_sk_live_999` | Bearer token agents must supply in the `Authorization` header to access MCP endpoints. Override in `.env` to set your own secret. |
+
+> **Connection strings** (Redis, MongoDB, PostgreSQL) are also derived from `VORTEX_HOST`, so a single env var change redirects all services at once.
+
+---
+
 ## 🤖 MCP Server Connection Guide for AI Agents
 
 Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents can connect and execute commands programmatically.
 
 ### 1. Connecting via SSE
-* **SSE Endpoint:** `GET http://localhost:3000/api/monico-labs.mcp/sse`
-* **Message Posting Endpoint:** `POST http://localhost:3000/api/monico-labs.mcp`
+* **SSE Endpoint:** `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`
+* **Message Posting Endpoint:** `POST http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp`
 * **Authentication Header:**
   ```http
-  Authorization: Bearer vrx_agent_sk_live_999
+  Authorization: Bearer <VRX_MCP_AUTH_TOKEN>
   ```
-  *(Alternatively, use the header `x-api-key: vrx_agent_sk_live_999` or query parameter `?key=vrx_agent_sk_live_999`)*
+  *(Alternatively, use the header `x-api-key: <token>` or query parameter `?key=<token>`)*
+
+**Default values** (when running locally without env overrides):
+- Host: `localhost`, Port: `3000`, Token: `vrx_agent_sk_live_999`
 
 ### 2. SSE Connection Flow
-1. Open an EventSource connection to `GET http://localhost:3000/api/monico-labs.mcp/sse`.
+1. Open an EventSource connection to `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`.
 2. The server will respond with an SSE connection stream and a custom connection URI for sending messages, or you can POST JSON-RPC payloads directly to `/api/monico-labs.mcp?sessionId=<session-id>`.
-3. Provide the `vrx_agent_sk_live_999` token in the authorization headers of all requests.
+3. Provide your auth token in the authorization headers of all requests.
 
 ---
 
@@ -53,16 +73,16 @@ Deploy the complete website frontend. You can provide any styled, self-contained
 * **Expected Result:** `Deployment successful. Preview routing active for: dep-xxxxxx`
 
 ### Step 3: Bind a Custom Subdomain
-Map the project deployment to a live virtual domain (e.g., `monico-labs.vortex.ml`) so it can handle traffic.
+Map the project deployment to a virtual domain path so it can handle traffic.
 * **Command:** `add_domain`
 * **Arguments:**
   ```json
   {
     "projectId": "prj-xxxxxx",
-    "domainName": "monico-labs.vortex.ml"
+    "domainName": "monico-labs"
   }
   ```
-* **Expected Result:** `Domain monico-labs.vortex.ml added to project prj-xxxxxx`
+* **Expected Result:** The project becomes reachable at `http://<VORTEX_HOST>:<VORTEX_PORT>/p/monico-labs`
 
 ---
 
@@ -98,14 +118,14 @@ Manage the high-level virtual containers, repositories, and workspaces.
 ---
 
 ### 🗄️ 3. Database & Services Management
-Deploy relational services, define schemas, populate tables, and run raw queries on the Vortex Virtual SQL Edge.
+Vortex keeps its own local file database (`vortex_local_db.json`) with no external dependencies. Optionally delegate SQL queries to Supabase by setting `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (see [Environment Variables](#️-environment-variables--configuration)).
 
 | Tool Name | Description | Arguments Schema (Zod) |
 | :--- | :--- | :--- |
 | **`list_database_tables`** | Lists database tables configured in the project. | `{ projectId: string }` |
 | **`create_database_table`** | Creates a fresh database table schema. | `{ projectId: string, name: string }` |
 | **`insert_database_record`**| Inserts a structured data record. | `{ projectId: string, tableName: string, data: string }` *(data must be stringified JSON)* |
-| **`query_database`** | Queries the database engine via raw SQL. | `{ projectId: string, sql: string }` |
+| **`query_database`** | Runs a SQL query against the local `vortex_local_db.json` file DB. If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, delegates to Supabase instead (requires an `execute_sql` stored function). | `{ projectId: string, sql: string }` |
 | **`list_database_services`**| Lists database backend server deployments. | `(none)` |
 | **`create_database_service`**| Provisions a new isolated SQL database service instance. | `{ projectId: string, serviceName: string, type: string }` |
 
@@ -113,6 +133,8 @@ Deploy relational services, define schemas, populate tables, and run raw queries
 
 ### 🌐 4. Domain & API Gateways Routing
 Bind domains, configure reverse-proxy ingress, and deploy API Routing Proxies.
+
+> **Domain routing:** Projects are served at `http://<VORTEX_HOST>:<VORTEX_PORT>/p/<name>`. Set `VORTEX_HOST` to your LAN IP to expose them across your network.
 
 | Tool Name | Description | Arguments Schema (Zod) |
 | :--- | :--- | :--- |
@@ -248,21 +270,23 @@ Audit server vitals, compare environment drifts, print system health analytics, 
 
 ---
 
-## ⚡ 2. Alternative REST Agent Webhook (The Direct Way)
+## ⚡ Alternative REST Agent Webhook (The Direct Way)
 
 AI Agents can also deploy directly using standard HTTP webhooks without initiating SSE connections:
 
 ```bash
-curl -X POST http://localhost:3000/api/vortex/agent/deploy \
+# Replace <VORTEX_HOST>, <VORTEX_PORT>, and <TOKEN> with your values
+# Defaults: localhost, 3000, vrx_agent_sk_live_999
+curl -X POST http://<VORTEX_HOST>:<VORTEX_PORT>/api/vortex/agent/deploy \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer vrx_agent_sk_live_999" \
+  -H "Authorization: Bearer <TOKEN>" \
   -d '{
     "html": "<div style=\"text-align:center;padding:3rem;\"><h1>Website Deployed!</h1></div>",
     "commitMessage": "Autopilot direct push"
   }'
 ```
 
-This returns a JSON payload with a direct, working URL to preview your newly deployed website!
+This returns a JSON payload with a direct, working URL to preview your newly deployed website.
 
 ---
 
@@ -282,7 +306,17 @@ Vortex is designed to automatically adapt its resource footprint based on the av
    ```bash
    npm run build
    ```
-3. By default, the server binds to port `3000`. You can easily map it to port `80` (HTTP) or `443` (HTTPS) using your system's reverse proxy (like Nginx), or specify a custom port using the `VORTEX_PORT` environment variable:
+3. Configure environment variables (copy `.env.example` to `.env` and edit as needed):
+   ```bash
+   cp .env.example .env
+   # Set VORTEX_HOST to your server's IP or 0.0.0.0 to bind on all interfaces
+   # Set VORTEX_PORT if you want a port other than 3000
+   ```
+4. Start the server:
+   ```bash
+   npm run start
+   ```
+   You can also map it to port `80`/`443` using a reverse proxy like Nginx, or specify a custom port directly:
    ```bash
    export VORTEX_PORT=8080
    npm run start
@@ -302,11 +336,19 @@ Vortex is designed to automatically adapt its resource footprint based on the av
    cd Monico-labs
    npm install
    ```
-4. Define a custom port (Android requires ports > 1024 without root) and start the server. On low-end devices, run directly with `tsx` (the `dev` script) to skip the heavier `esbuild`/`vite` production build:
+4. Set your environment variables. To make the server reachable from other devices on your Wi-Fi, set `VORTEX_HOST` to your phone's LAN IP:
    ```bash
-   export VORTEX_PORT=8080
+   cp .env.example .env
+   # Edit .env — set VORTEX_HOST=<your-phone-LAN-IP>  e.g. 192.168.1.5
+   # Android requires ports > 1024 without root; default is 3000
+   export VORTEX_PORT=8080   # optional override
+   ```
+5. Start the server. On low-end devices, run directly with `tsx` (the `dev` script) to skip the heavier `esbuild`/`vite` production build:
+   ```bash
    npm run dev
    ```
-   *(On a higher-spec device you can instead run `npm run build && npm run start` for the optimized production bundle.)*
+   On a higher-spec device you can instead run `npm run build && npm run start` for the optimized production bundle.
 
-*Note: When running on a low-end environment (less than 3GB RAM or 2 CPU cores), Vortex automatically switches to the `bad` hardware optimization profile, reducing background metrics intervals and simulated compiler blocking latency to prevent Node.js event loop hangs.*
+> **Cross-device access:** Once `VORTEX_HOST` is set to your LAN IP, other devices on the same Wi-Fi can reach the MCP server at `http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`.
+
+*Note: When running on a low-end environment (less than 3GB RAM or 2 CPU cores), Vortex automatically switches to the `bad` hardware optimization profile, reducing background metrics intervals to prevent Node.js event loop hangs.*
