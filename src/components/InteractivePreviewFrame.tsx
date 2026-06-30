@@ -52,8 +52,7 @@ export default function InteractivePreviewFrame({
 
           <div className="flex-1 max-w-md bg-neutral-900 border border-neutral-800/80 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs text-neutral-400 font-mono select-all">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
-            <span className="text-neutral-500 truncate select-none">https://</span>
-            <span className="truncate text-neutral-200">{projectName}-{deploymentId}.vortex.ml</span>
+            <span className="truncate text-neutral-200">{previewUrl || sandboxUrl}</span>
           </div>
         </div>
 
