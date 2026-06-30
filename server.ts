@@ -7,15 +7,38 @@ import fs from "fs";
 import os from "os";
 import cors from "cors";
 import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 
-// Initialize Firebase Admin
-if (!getApps().length) {
-  initializeApp();
-}
-const db = getFirestore();
 const DB_COLLECTION = "vortex_system";
 const DB_DOC_ID = "main_state";
+
+// Firestore is OPTIONAL. It only activates when real Google Cloud credentials are present
+// (GOOGLE_APPLICATION_CREDENTIALS, GCLOUD_PROJECT/GOOGLE_CLOUD_PROJECT, or FIREBASE_CONFIG).
+// On local/Termux hosting with no credentials, we skip it entirely and persist to the local
+// JSON file instead — so a missing cloud project can never break startup or persistence.
+const firestoreCredentialsPresent = Boolean(
+  process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+  process.env.GCLOUD_PROJECT ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.FIREBASE_CONFIG
+);
+
+let db: Firestore | null = null;
+if (firestoreCredentialsPresent) {
+  try {
+    if (!getApps().length) {
+      initializeApp();
+    }
+    db = getFirestore();
+    console.log("[vortex-db] Firestore credentials detected — cloud persistence enabled.");
+  } catch (err) {
+    db = null;
+    console.warn("[vortex-db] Firestore init failed, falling back to local file storage:", (err as Error)?.message || err);
+  }
+} else {
+  console.log("[vortex-db] No Firestore credentials — using local file storage (vortex_local_db.json).");
+}
+const firestoreEnabled = () => db !== null;
 
 import localtunnel from "localtunnel";
 
@@ -246,162 +269,173 @@ const DB_FILE_PATH = path.join(process.cwd(), "vortex_cloud.engine");
 const LOCAL_DB_FILE_PATH = path.join(process.cwd(), "vortex_local_db.json");
 
 async function saveToCloudDB() {
+  const dataToSave = {
+    shieldConfigs,
+    baseIncidents,
+    databaseTables,
+    authConfigs,
+    authUsers,
+    apiKeys,
+    workspaces,
+    composioConnectors,
+    projects,
+    envVars,
+    domains,
+    deployments,
+    serverlessFunctions,
+    executionLogs,
+    databaseServices,
+    scalingConfigs,
+    projectEnvironments,
+    teamTokens,
+    workspacePolicies,
+    apiGateways,
+    backups,
+    backupPolicies,
+    environments,
+    gitRepos,
+    sslCertificates,
+    auditTrails,
+    realTimeChannels,
+    storageBuckets,
+    autoScalingConfigs
+  };
+
+  // 1) ALWAYS persist locally first — this is the primary store and must never be blocked
+  //    by an unavailable cloud backend.
   try {
-    const dataToSave = {
-      shieldConfigs,
-      baseIncidents,
-      databaseTables,
-      authConfigs,
-      authUsers,
-      apiKeys,
-      workspaces,
-      composioConnectors,
-      projects,
-      envVars,
-      domains,
-      deployments,
-      serverlessFunctions,
-      executionLogs,
-      databaseServices,
-      scalingConfigs,
-      projectEnvironments,
-      teamTokens,
-      workspacePolicies,
-      apiGateways,
-      backups,
-      backupPolicies,
-      environments,
-      gitRepos,
-      sslCertificates,
-      auditTrails,
-      realTimeChannels,
-      storageBuckets,
-      autoScalingConfigs
-    };
-    
-    // Save to Firestore for real persistence
-    await db.collection(DB_COLLECTION).doc(DB_DOC_ID).set(dataToSave);
-    
-    // Also keep local fallback for now
     fs.writeFileSync(LOCAL_DB_FILE_PATH, JSON.stringify(dataToSave, null, 2), "utf-8");
-    console.log("[vortex-db] State saved to Firestore successfully.");
   } catch (err) {
-    console.error("[vortex-db] Firestore write error:", err);
+    console.error("[vortex-db] Local DB write error:", (err as Error)?.message || err);
+  }
+
+  // 2) Optionally mirror to Firestore when cloud credentials are configured.
+  if (firestoreEnabled() && db) {
+    try {
+      await db.collection(DB_COLLECTION).doc(DB_DOC_ID).set(dataToSave);
+    } catch (err) {
+      console.error("[vortex-db] Firestore write error (local copy is safe):", (err as Error)?.message || err);
+    }
   }
 }
 
 async function loadFromCloudDB() {
+  let loaded: any = null;
+
+  // 1) Load from the local JSON file first — always available, no cloud dependency.
   try {
-    console.log("[vortex-db] Loading state from Firestore...");
-    const doc = await db.collection(DB_COLLECTION).doc(DB_DOC_ID).get();
-    
-    let loaded: any = null;
-    if (doc.exists) {
-      loaded = doc.data();
-      console.log("[vortex-db] State restored successfully from Firestore.");
-    } else if (fs.existsSync(LOCAL_DB_FILE_PATH)) {
+    if (fs.existsSync(LOCAL_DB_FILE_PATH)) {
       const localData = fs.readFileSync(LOCAL_DB_FILE_PATH, "utf-8");
       if (localData.trim()) {
         loaded = JSON.parse(localData);
-        console.log("[vortex-db] State restored from local fallback.");
+        console.log("[vortex-db] State restored from local file (vortex_local_db.json).");
       }
-    }
-
-    if (loaded) {
-      if (loaded.shieldConfigs) shieldConfigs = loaded.shieldConfigs;
-      if (loaded.baseIncidents) baseIncidents = loaded.baseIncidents;
-      if (loaded.databaseTables) databaseTables = loaded.databaseTables;
-      if (loaded.authConfigs) authConfigs = loaded.authConfigs;
-      if (loaded.authUsers) authUsers = loaded.authUsers;
-      if (loaded.apiKeys) apiKeys = loaded.apiKeys;
-      if (loaded.workspaces) workspaces = loaded.workspaces;
-      if (loaded.composioConnectors) composioConnectors = loaded.composioConnectors;
-      if (loaded.projects) projects = loaded.projects;
-      if (loaded.envVars) envVars = loaded.envVars;
-      if (loaded.domains) domains = loaded.domains;
-      if (loaded.deployments) deployments = loaded.deployments;
-      if (loaded.serverlessFunctions) serverlessFunctions = loaded.serverlessFunctions;
-      if (loaded.executionLogs) executionLogs = loaded.executionLogs;
-      if (loaded.databaseServices) databaseServices = loaded.databaseServices;
-      if (loaded.scalingConfigs) scalingConfigs = loaded.scalingConfigs;
-      if (loaded.projectEnvironments) projectEnvironments = loaded.projectEnvironments;
-      if (loaded.teamTokens) teamTokens = loaded.teamTokens;
-      if (loaded.workspacePolicies) workspacePolicies = loaded.workspacePolicies;
-      if (loaded.apiGateways) apiGateways = loaded.apiGateways;
-      if (loaded.backups) backups = loaded.backups;
-      if (loaded.backupPolicies) backupPolicies = loaded.backupPolicies;
-      if (loaded.environments) environments = loaded.environments;
-      if (loaded.gitRepos) gitRepos = loaded.gitRepos;
-      if (loaded.sslCertificates) sslCertificates = loaded.sslCertificates;
-      if (loaded.auditTrails) auditTrails = loaded.auditTrails;
-      if (loaded.realTimeChannels) realTimeChannels = loaded.realTimeChannels;
-      if (loaded.storageBuckets) storageBuckets = loaded.storageBuckets;
-      if (loaded.autoScalingConfigs) autoScalingConfigs = loaded.autoScalingConfigs;
-      console.log("[vortex-db] State restored successfully from cloud storage engine.");
-      
-      // Make sure they are both in sync on load
-      if (!fs.existsSync(DB_FILE_PATH) || !fs.existsSync(LOCAL_DB_FILE_PATH)) {
-        saveToCloudDB();
-      }
-    } else {
-      saveToCloudDB();
-    }
-    
-    // Seed default workspace if empty
-    if (workspaces.length === 0) {
-      workspaces.push({
-        id: "ws-default",
-        name: "My First Workspace",
-        owner: "jayomer1234@gmail.com",
-        members: [{ email: "jayomer1234@gmail.com", role: "Owner" }]
-      });
-      console.log("[vortex-db] Seeded default workspace.");
-      await saveToCloudDB();
-    }
-
-    if (projects.length === 0) {
-      const defaultProjectId = "proj-1";
-      projects.push({
-        id: defaultProjectId,
-        name: "active-gate",
-        framework: "react",
-        repo: "user/active-gate",
-        branch: "main",
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        activeDeploymentId: "dep-1",
-      });
-      
-      deployments.push({
-        id: "dep-1",
-        projectId: defaultProjectId,
-        status: "ready",
-        previewUrl: `http://${VORTEX_HOST}:${PORT}/p/active-gate-dep-1`,
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        commitMessage: "initial deployment: active security gate & web vitals baseline monitor",
-        commitHash: "e4f8d2a",
-        buildLogs: [
-          "[vortex] Initializing build workspace to deploy user/active-gate...",
-          "[vortex] Loaded 12 dependencies from cloud lockfile",
-          "[vortex] Running compiler script: \"vite build\"",
-          "[vite] ✓ compiled in 0.8s",
-          "[vortex] Deployment successful! 🎉",
-        ],
-        deployedHtml: `
-          <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center p-8 text-center">
-            <h2 class="text-xl font-black text-white uppercase tracking-tight">Active Edge Service</h2>
-            <p class="text-neutral-500 text-xs">Vortex routing completed successfully.</p>
-          </div>
-        `,
-      });
-
-      domains[defaultProjectId] = [`${VORTEX_HOST}:${PORT}/p/${defaultProjectId}`];
-      envVars[defaultProjectId] = [{ id: "env-1", key: "VITE_APP_ENV", value: "production" }];
-      
-      console.log("[vortex-db] Seeded initial project and deployment.");
-      await saveToCloudDB();
     }
   } catch (err) {
-    console.error("[vortex-db] Read error, running on default memory variables:", err);
+    console.error("[vortex-db] Local DB read error, continuing with defaults:", (err as Error)?.message || err);
+  }
+
+  // 2) If Firestore is enabled, prefer the cloud copy when it exists.
+  if (firestoreEnabled() && db) {
+    try {
+      console.log("[vortex-db] Loading state from Firestore...");
+      const doc = await db.collection(DB_COLLECTION).doc(DB_DOC_ID).get();
+      if (doc.exists) {
+        loaded = doc.data();
+        console.log("[vortex-db] State restored successfully from Firestore.");
+      }
+    } catch (err) {
+      console.error("[vortex-db] Firestore read error (using local copy):", (err as Error)?.message || err);
+    }
+  }
+
+  if (loaded) {
+    if (loaded.shieldConfigs) shieldConfigs = loaded.shieldConfigs;
+    if (loaded.baseIncidents) baseIncidents = loaded.baseIncidents;
+    if (loaded.databaseTables) databaseTables = loaded.databaseTables;
+    if (loaded.authConfigs) authConfigs = loaded.authConfigs;
+    if (loaded.authUsers) authUsers = loaded.authUsers;
+    if (loaded.apiKeys) apiKeys = loaded.apiKeys;
+    if (loaded.workspaces) workspaces = loaded.workspaces;
+    if (loaded.composioConnectors) composioConnectors = loaded.composioConnectors;
+    if (loaded.projects) projects = loaded.projects;
+    if (loaded.envVars) envVars = loaded.envVars;
+    if (loaded.domains) domains = loaded.domains;
+    if (loaded.deployments) deployments = loaded.deployments;
+    if (loaded.serverlessFunctions) serverlessFunctions = loaded.serverlessFunctions;
+    if (loaded.executionLogs) executionLogs = loaded.executionLogs;
+    if (loaded.databaseServices) databaseServices = loaded.databaseServices;
+    if (loaded.scalingConfigs) scalingConfigs = loaded.scalingConfigs;
+    if (loaded.projectEnvironments) projectEnvironments = loaded.projectEnvironments;
+    if (loaded.teamTokens) teamTokens = loaded.teamTokens;
+    if (loaded.workspacePolicies) workspacePolicies = loaded.workspacePolicies;
+    if (loaded.apiGateways) apiGateways = loaded.apiGateways;
+    if (loaded.backups) backups = loaded.backups;
+    if (loaded.backupPolicies) backupPolicies = loaded.backupPolicies;
+    if (loaded.environments) environments = loaded.environments;
+    if (loaded.gitRepos) gitRepos = loaded.gitRepos;
+    if (loaded.sslCertificates) sslCertificates = loaded.sslCertificates;
+    if (loaded.auditTrails) auditTrails = loaded.auditTrails;
+    if (loaded.realTimeChannels) realTimeChannels = loaded.realTimeChannels;
+    if (loaded.storageBuckets) storageBuckets = loaded.storageBuckets;
+    if (loaded.autoScalingConfigs) autoScalingConfigs = loaded.autoScalingConfigs;
+    console.log("[vortex-db] State restored successfully.");
+  } else {
+    await saveToCloudDB();
+  }
+
+  // Seed default workspace if empty — runs regardless of cloud availability.
+  if (workspaces.length === 0) {
+    workspaces.push({
+      id: "ws-default",
+      name: "My First Workspace",
+      owner: "jayomer1234@gmail.com",
+      members: [{ email: "jayomer1234@gmail.com", role: "Owner" }]
+    });
+    console.log("[vortex-db] Seeded default workspace.");
+    await saveToCloudDB();
+  }
+
+  if (projects.length === 0) {
+    const defaultProjectId = "proj-1";
+    projects.push({
+      id: defaultProjectId,
+      name: "active-gate",
+      framework: "react",
+      repo: "user/active-gate",
+      branch: "main",
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      activeDeploymentId: "dep-1",
+    });
+
+    deployments.push({
+      id: "dep-1",
+      projectId: defaultProjectId,
+      status: "ready",
+      previewUrl: `http://${VORTEX_HOST}:${PORT}/p/active-gate-dep-1`,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      commitMessage: "initial deployment: active security gate & web vitals baseline monitor",
+      commitHash: "e4f8d2a",
+      buildLogs: [
+        "[vortex] Initializing build workspace to deploy user/active-gate...",
+        "[vortex] Loaded 12 dependencies from cloud lockfile",
+        "[vortex] Running compiler script: \"vite build\"",
+        "[vite] ✓ compiled in 0.8s",
+        "[vortex] Deployment successful! 🎉",
+      ],
+      deployedHtml: `
+        <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center p-8 text-center">
+          <h2 class="text-xl font-black text-white uppercase tracking-tight">Active Edge Service</h2>
+          <p class="text-neutral-500 text-xs">Vortex routing completed successfully.</p>
+        </div>
+      `,
+    });
+
+    domains[defaultProjectId] = [`${VORTEX_HOST}:${PORT}/p/${defaultProjectId}`];
+    envVars[defaultProjectId] = [{ id: "env-1", key: "VITE_APP_ENV", value: "production" }];
+
+    console.log("[vortex-db] Seeded initial project and deployment.");
+    await saveToCloudDB();
   }
 }
 
@@ -678,6 +712,47 @@ app.get("/api/preview/:deploymentId", (req, res) => {
     </html>
   `;
   res.send(enhancedHtml);
+});
+
+// ----------------------------------------------------
+// LOCAL EDGE ROUTE: serve a deployment by its path slug (http://HOST:PORT/p/<slug>)
+// The server advertises /p/<slug> URLs for projects, deployments, and agent-allocated
+// subdomains. This handler resolves the slug to a deployment and serves it. Without this,
+// those local URLs would fall through to the SPA catch-all and never render the deployed site.
+// ----------------------------------------------------
+app.get("/p/:slug", (req, res) => {
+  const slug = req.params.slug;
+
+  // 1) A deployment whose previewUrl path ends with /p/<slug>
+  let dep = deployments.find((d) => d.previewUrl && d.previewUrl.endsWith(`/p/${slug}`));
+
+  // 2) A registered local domain ending with /p/<slug> -> its project's active deployment
+  if (!dep) {
+    for (const [projectId, projectDomains] of Object.entries(domains)) {
+      if (projectDomains.some((d) => d === slug || d.endsWith(`/p/${slug}`))) {
+        const proj = projects.find((p) => p.id === projectId);
+        if (proj && proj.activeDeploymentId) {
+          dep = deployments.find((d) => d.id === proj.activeDeploymentId);
+        }
+        break;
+      }
+    }
+  }
+
+  // 3) A project matched directly by id or name -> its active deployment
+  if (!dep) {
+    const proj = projects.find((p) => p.id === slug || p.name === slug);
+    if (proj && proj.activeDeploymentId) {
+      dep = deployments.find((d) => d.id === proj.activeDeploymentId);
+    }
+  }
+
+  if (!dep) {
+    return res.status(404).send(`<h3>404: No Vortex deployment is mapped to /p/${slug}</h3>`);
+  }
+
+  // Reuse the existing preview renderer (enhanced HTML wrapper + live banner)
+  return res.redirect(302, `/api/preview/${dep.id}`);
 });
 
 // Trigger dynamic deployments (using Gemini option to customize look!)
