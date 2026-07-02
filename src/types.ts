@@ -57,9 +57,9 @@ export interface AnalyticsMetric {
 }
 
 export interface CoreWebVitals {
-  lcp: { value: number; rating: 'good' | 'needs-improvement' | 'poor' };
-  fid: { value: number; rating: 'good' | 'needs-improvement' | 'poor' };
-  cls: { value: number; rating: 'good' | 'needs-improvement' | 'poor' };
+  lcp: { value: number; rating: 'good' | 'needs-improvement' | 'poor' | 'measuring' };
+  fid: { value: number; rating: 'good' | 'needs-improvement' | 'poor' | 'measuring' };
+  cls: { value: number; rating: 'good' | 'needs-improvement' | 'poor' | 'measuring' };
 }
 
 export interface ShieldConfig {
