@@ -5,9 +5,9 @@ import { AnalyticsMetric, CoreWebVitals } from "../types";
 interface AnalyticsChartsProps {
   metrics: AnalyticsMetric[];
   vitals: CoreWebVitals;
-  isSpikeActive: boolean;
-  onToggleSpike: () => void;
-  isLoading: boolean;
+  isSpikeActive?: boolean;
+  onToggleSpike?: () => void;
+  isLoading?: boolean;
 }
 
 export default function AnalyticsCharts({
@@ -68,7 +68,14 @@ export default function AnalyticsCharts({
 
   const activeMetric = hoverIndex !== null ? metrics[hoverIndex] : metrics[metrics.length - 1];
 
-  const getRatingBadge = (rating: "good" | "needs-improvement" | "poor") => {
+  const getRatingBadge = (rating: "good" | "needs-improvement" | "poor" | "measuring") => {
+    if (rating === "measuring") {
+      return (
+        <span className="bg-neutral-700/20 text-neutral-400 border border-neutral-600/30 px-2 py-0.5 rounded text-[10px] font-semibold uppercase animate-pulse">
+          Measuring
+        </span>
+      );
+    }
     if (rating === "good") {
       return (
         <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
@@ -92,29 +99,20 @@ export default function AnalyticsCharts({
 
   return (
     <div className="space-y-6">
-      {/* Simulation Controls banner */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm hover:border-neutral-750/90 transition-all">
+      {/* Live telemetry header — real request-log + browser Web Vitals, no simulation */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-neutral-100 flex items-center gap-2">
             <Zap className="h-4 w-4 text-purple-400" />
-            Vortex Edge Traffic Simulator
+            Live Edge Telemetry
           </h3>
           <p className="text-xs text-neutral-500 max-w-lg">
-            Toggle a stress simulation containing real-time request bursts, latency spikes, and page processing errors to inspect active edge scalability.
+            Requests, bandwidth, errors and latency are aggregated from the server's real request log; Core Web Vitals are measured live in your browser.
           </p>
         </div>
-
-        <button
-          onClick={onToggleSpike}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold font-mono tracking-wide transition-all shadow-md flex items-center gap-1.5 ${
-            isSpikeActive
-              ? "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"
-              : "bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700"
-          }`}
-        >
-          <Activity className="h-3.5 w-3.5" />
-          {isSpikeActive ? "SURGE ACTIVE: ON" : "SIMULATE SURGE: OFF"}
-        </button>
+        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded font-mono uppercase flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5" /> Live
+        </span>
       </div>
 
       {/* Analytics Bento Grid */}
@@ -168,13 +166,6 @@ export default function AnalyticsCharts({
               </div>
             </div>
           </div>
-
-          {isSpikeActive && (
-            <div className="bg-rose-500/5 border border-rose-500/10 p-3 rounded-lg text-[11px] text-rose-400 flex items-start gap-2 animate-pulse">
-              <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0 mt-0.5" />
-              <span>Surged payloads discovered page compilation lag, pushing LCP and FID metrics to caution limits.</span>
-            </div>
-          )}
         </div>
 
         {/* Live Traffic Interactive Charts Display */}
