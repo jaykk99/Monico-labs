@@ -200,6 +200,86 @@ interface ThreatIncident {
 let shieldConfigs: Record<string, ShieldConfig> = {};
 let baseIncidents: ThreatIncident[] = [];
 
+// Real traffic log fed by the actual domain-routing middleware below —
+// replaces the old randomly-fabricated incident generator.
+interface RealRequestLogEntry {
+  ts: number;
+  ip: string;
+  ua: string;
+  path: string;
+  projectId: string;
+}
+const requestLog: RealRequestLogEntry[] = [];
+const blockedIpsByProject: Record<string, Set<string>> = {};
+const SUSPICIOUS_PATH_PATTERNS: RegExp[] = [
+  /\/wp-admin/i, /\/wp-login/i, /\.env$/i, /\/\.git/i,
+  /union\s+select/i, /select\s+\*\s+from/i, /<script/i,
+  /\/etc\/passwd/i, /\/admin\/db/i, /phpmyadmin/i,
+];
+const RATE_WINDOW_MS = 10_000;
+const RATE_BLOCK_THRESHOLD = 25; // requests from one IP within RATE_WINDOW_MS
+
+function recordRealRequest(projectId: string, ip: string, ua: string, path: string): { blocked: boolean; reason?: string } {
+  const now = Date.now();
+  requestLog.push({ ts: now, ip, ua, path, projectId });
+  // trim old entries (keep last 30 min of history, bounded size)
+  while (requestLog.length > 5000) requestLog.shift();
+
+  if (!blockedIpsByProject[projectId]) blockedIpsByProject[projectId] = new Set();
+  const config = shieldConfigs[projectId];
+  const securityOff = config && config.securityLevel === "off";
+  if (securityOff) return { blocked: false };
+
+  if (blockedIpsByProject[projectId].has(ip)) {
+    return { blocked: true, reason: "IP previously flagged and blocked" };
+  }
+
+  const suspiciousPath = SUSPICIOUS_PATH_PATTERNS.some(re => re.test(path));
+  if (suspiciousPath) {
+    blockedIpsByProject[projectId].add(ip);
+    return { blocked: true, reason: "Suspicious path signature matched" };
+  }
+
+  const recentFromIp = requestLog.filter(r => r.projectId === projectId && r.ip === ip && now - r.ts <= RATE_WINDOW_MS).length;
+  const attackMode = config && config.securityLevel === "under-attack";
+  const threshold = attackMode ? Math.max(5, Math.floor(RATE_BLOCK_THRESHOLD / 3)) : RATE_BLOCK_THRESHOLD;
+  if (recentFromIp > threshold) {
+    blockedIpsByProject[projectId].add(ip);
+    return { blocked: true, reason: `Rate limit exceeded (${recentFromIp} reqs/${RATE_WINDOW_MS / 1000}s)` };
+  }
+
+  return { blocked: false };
+}
+
+function deriveRealIncidents(projectId: string): ThreatIncident[] {
+  const blocked = blockedIpsByProject[projectId] || new Set<string>();
+  const relevant = requestLog
+    .filter(r => r.projectId === projectId)
+    .slice(-200)
+    .reverse();
+  const incidents: ThreatIncident[] = [];
+  const seenIp = new Set<string>();
+  for (const r of relevant) {
+    if (incidents.length >= 15) break;
+    if (seenIp.has(r.ip)) continue;
+    seenIp.add(r.ip);
+    const isBlocked = blocked.has(r.ip);
+    const suspicious = SUSPICIOUS_PATH_PATTERNS.some(re => re.test(r.path));
+    incidents.push({
+      id: `inc-${r.ts}-${r.ip}`,
+      timestamp: new Date(r.ts).toISOString(),
+      ip: r.ip,
+      country: "Unknown", // real geo-IP lookup requires an external service/API key — not fabricated here
+      flag: "🌐",
+      threatType: isBlocked ? (suspicious ? "Suspicious path signature blocked" : "Rate-limit block")
+                            : "Traffic observed",
+      action: isBlocked ? "blocked" : "allowed",
+      query: `${r.path} (${r.ua.slice(0, 60)})`
+    });
+  }
+  return incidents;
+}
+
 
 import { DbTable, AuthConfig, AuthUser, ApiKey, Workspace, ComposioConnector } from "./src/types";
 
@@ -471,6 +551,16 @@ app.use((req, res, next) => {
     }
     
     if (matchedProjectId) {
+      const realIp = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").split(",")[0].trim();
+      const realUa = String(req.headers["user-agent"] || "unknown");
+      const verdict = recordRealRequest(matchedProjectId, realIp, realUa, req.originalUrl || req.url || "/");
+      if (verdict.blocked) {
+        const cfg = shieldConfigs[matchedProjectId];
+        if (cfg) cfg.totalThreatsBlocked = (cfg.totalThreatsBlocked || 0) + 1;
+        console.warn(`[shield] Blocked request from ${realIp} to project ${matchedProjectId}: ${verdict.reason}`);
+        return res.status(403).send(`<h3>403: Blocked by Vortex Shield (${verdict.reason})</h3>`);
+      }
+
       const matchedProject = projects.find(p => p.id === matchedProjectId);
       if (matchedProject && matchedProject.activeDeploymentId) {
         const activeDep = deployments.find(d => d.id === matchedProject.activeDeploymentId);
@@ -815,9 +905,9 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[vortex] Executing compilation script: "${buildCommand || "npm run build"}"`,
       `[compiler] resolving module endpoints and scanning tree-shaking assets...`,
       `[compiler] loading asset router...`,
-      `[vortex-cdn] uploading index.html template onto high-performance cache`,
+      `[vortex] writing built index.html to local deployment store`,
       `[vortex] verifying local routing for: ${VORTEX_HOST}:${PORT}/p/${prj.name}`,
-      `[vortex] Deployment active in US-East-1, EU-West-2, AP-South-1`,
+      `[vortex] Deployment active on this host (${VORTEX_HOST}:${PORT})`,
       `[vortex] Deployment completed successfully! 🎉`,
     ];
   } else if (prj.framework === "nextjs") {
@@ -828,8 +918,8 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[next] creating production build bundle with command "${buildCommand || "next build"}"`,
       `[compiler] chunking server-side dynamic paths...`,
       `[compiler] Static optimizations: 14 HTML routes resolved, 1 dynamic router edge`,
-      `[vortex] Linking serverless backend nodes for /api/* gateways`,
-      `[vortex] Configuring Anycast routing tables...`,
+      `[vortex] Linking local API routes for /api/* handlers`,
+      `[vortex] Registering routes on this host's router`,
       `[vortex] Deployment successful! 🎉`,
     ];
   } else {
@@ -837,9 +927,9 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[vortex] Initiating deployment for serverless node project: ${prj.repo}...`,
       `[vortex] bundler = EsBuild Node compiler`,
       `[vortex] compiling APIs into single serverless bundle: output direction: "${outputDirectory || "dist"}"`,
-      `[vortex] microservices validated, scanning 4 endpoints`,
+      `[vortex] endpoints registered on this host's router`,
       `[vortex] verifying local route boundaries for ${prj.name} at ${VORTEX_HOST}:${PORT}`,
-      `[vortex] Serverless edge function gateway live.`,
+      `[vortex] Serverless function gateway live on this host.`,
       `[vortex] Deployment successful! 🎉`,
     ];
   }
@@ -1237,67 +1327,26 @@ app.delete("/api/projects/:projectId/shield/waf/:ruleId", (req, res) => {
   res.json({ success: true, wafRules: shieldConfigs[projectId]?.wafRules || [] });
 });
 
-// GET threat incidents for a project
+// GET threat incidents for a project — derived from REAL captured traffic
+// (see recordRealRequest / deriveRealIncidents above), not fabricated events.
 app.get("/api/projects/:projectId/shield/threats", (req, res) => {
   const { projectId } = req.params;
-  const config = shieldConfigs[projectId] || { securityLevel: "medium", totalThreatsBlocked: 120 };
-  
-  // If the security level is "under-attack", let's append a brand new mock incident live!
-  if (config.securityLevel === "under-attack") {
-    // Simulate high frequency ddos blocks
-    config.totalThreatsBlocked += Math.floor(Math.random() * 8) + 3;
-    
-    // 50% chance to push a new recent event
-    if (Math.random() > 0.4) {
-      const uas = ["Mozilla/5.0 Bot", "curl/7.68.0", "Python-urllib/3.8", "Go-http-client/2.0"];
-      const countries = [
-        { name: "China", flag: "🇨🇳", ip: "218.10.22.41", q: "GET /api/v1/users SQLi payload parsed" },
-        { name: "Russia", flag: "🇷🇺", ip: "91.241.13.90", q: "GET /admin/db brute force SYN spoof" },
-        { name: "Germany", flag: "🇩🇪", ip: "46.20.12.110", q: "POST /blog/publish proxy inject attempt" },
-        { name: "Brazil", flag: "🇧🇷", ip: "179.180.4.52", q: "GET / WP-crawler scan tool exploit" },
-        { name: "North Korea", flag: "🇰🇵", ip: "175.45.176.4", q: "SSH credentials brute-force hijack" }
-      ];
-      const targetCountry = countries[Math.floor(Math.random() * countries.length)];
-      const freshIncident: ThreatIncident = {
-        id: `inc-${generateId()}`,
-        timestamp: new Date().toISOString(),
-        ip: targetCountry.ip,
-        country: targetCountry.name,
-        flag: targetCountry.flag,
-        threatType: "Synthetic DDoS Threat / Exploit attempt blocked",
-        action: "blocked",
-        query: targetCountry.q
-      };
-      baseIncidents = [freshIncident, ...baseIncidents.slice(0, 14)];
-    }
-  } else {
-    // Normal level - small chance to add basic telemetry block
-    if (Math.random() > 0.88) {
-      config.totalThreatsBlocked += 1;
-      const normalCountries = [
-        { name: "United States", flag: "🇺🇸", ip: "66.249.79.12", q: "GET /robots.txt checked" },
-        { name: "Canada", flag: "🇨🇦", ip: "192.0.2.14", q: "GET /api/inventory cache missed" },
-        { name: "United Kingdom", flag: "🇬🇧", ip: "195.12.3.4", q: "GET /assets/index-B7y9A1c.js" }
-      ];
-      const target = normalCountries[Math.floor(Math.random() * normalCountries.length)];
-      const fresh: ThreatIncident = {
-        id: `inc-${generateId()}`,
-        timestamp: new Date().toISOString(),
-        ip: target.ip,
-        country: target.name,
-        flag: target.flag,
-        threatType: "Automated scraper signature validated",
-        action: "challenged",
-        query: target.q
-      };
-      baseIncidents = [fresh, ...baseIncidents.slice(0, 14)];
-    }
+  if (!shieldConfigs[projectId]) {
+    shieldConfigs[projectId] = {
+      sslMode: "flexible",
+      developmentMode: false,
+      brotli: true,
+      securityLevel: "medium",
+      wafRules: [],
+      totalThreatsBlocked: 0
+    };
   }
+  const config = shieldConfigs[projectId];
 
   res.json({
     totalBlocked: config.totalThreatsBlocked,
     securityLevel: config.securityLevel,
-    incidents: baseIncidents
+    incidents: deriveRealIncidents(projectId)
   });
 });
 
@@ -1699,89 +1748,161 @@ app.delete("/api/projects/:projectId/database/tables/:tableName", (req, res) => 
   res.json({ success: true, tables: databaseTables[projectId] || [] });
 });
 
-// Interactive SQL & Query Scanner
+// Real, lightweight SQL executor — parses actual column/VALUES lists and
+// WHERE clauses against the project's real in-memory tables. No fabricated
+// or randomly-generated data: values come from the SQL statement itself.
+function parseWhereClause(whereStr: string): Array<{ field: string; op: string; val: string }> {
+  const conditions: Array<{ field: string; op: string; val: string }> = [];
+  const clauses = whereStr.split(/\s+and\s+/i);
+  for (const clause of clauses) {
+    const m = clause.trim().match(/^([a-zA-Z0-9_]+)\s*(=|!=|<>|like|>|<|>=|<=)\s*(.+)$/i);
+    if (!m) continue;
+    const [, field, op, rawVal] = m;
+    conditions.push({ field: field.trim(), op: op.toLowerCase(), val: rawVal.trim().replace(/^['"]|['"]$/g, "") });
+  }
+  return conditions;
+}
+
+function rowMatchesConditions(row: Record<string, any>, conditions: Array<{ field: string; op: string; val: string }>, columns: any[]): boolean {
+  return conditions.every(c => {
+    const realField = Object.keys(row).find(k => k.toLowerCase() === c.field.toLowerCase());
+    if (!realField) return false;
+    const cellVal = row[realField];
+    const cellStr = String(cellVal).toLowerCase();
+    const cmpVal = c.val.toLowerCase();
+    switch (c.op) {
+      case "=": return cellStr === cmpVal;
+      case "!=":
+      case "<>": return cellStr !== cmpVal;
+      case "like": return cellStr.includes(cmpVal.replace(/%/g, ""));
+      case ">": return Number(cellVal) > Number(c.val);
+      case "<": return Number(cellVal) < Number(c.val);
+      case ">=": return Number(cellVal) >= Number(c.val);
+      case "<=": return Number(cellVal) <= Number(c.val);
+      default: return false;
+    }
+  });
+}
+
+function parseSqlValueList(raw: string): string[] {
+  // Splits a "'a', 'b', 123, true" list respecting quoted strings.
+  const out: string[] = [];
+  let cur = "";
+  let inQuote: string | null = null;
+  for (const ch of raw) {
+    if (inQuote) {
+      if (ch === inQuote) { inQuote = null; continue; }
+      cur += ch;
+    } else if (ch === "'" || ch === '"') {
+      inQuote = ch;
+    } else if (ch === ",") {
+      out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim().length) out.push(cur.trim());
+  return out;
+}
+
+function coerceValueForColumn(raw: string, col: any): any {
+  const lower = raw.toLowerCase();
+  if (lower === "null") return null;
+  if (col.type === "boolean") return lower === "true" || lower === "1";
+  if (col.type === "integer") return Number.isFinite(Number(raw)) ? Number(raw) : raw;
+  if (col.type === "timestamp" && (lower === "now()" || lower === "current_timestamp")) {
+    return new Date().toISOString().replace("T", " ").substring(0, 19);
+  }
+  return raw;
+}
+
+// Interactive SQL & Query executor (REAL — no fabricated results)
 app.post("/api/projects/:projectId/database/query", (req, res) => {
   const { projectId } = req.params;
   const { sql } = req.body;
-  
+
   if (!sql || typeof sql !== "string") {
     return res.status(400).json({ error: "Missing SQL string parameter value." });
   }
 
-  const queryTrimmed = sql.trim().toLowerCase();
-  
+  const rawSql = sql.trim();
+  const queryTrimmed = rawSql.toLowerCase();
+
   if (!databaseTables[projectId]) {
     databaseTables[projectId] = [];
   }
+  const tables = databaseTables[projectId];
 
-  // Basic SQL interpreter mock
+  const findTable = (): DbTable | undefined =>
+    tables.find(t => queryTrimmed.includes(t.name.toLowerCase()));
+
   if (queryTrimmed.startsWith("select")) {
-    // Determine which table is being queried
-    const foundTable = databaseTables[projectId].find(t => queryTrimmed.includes(t.name.toLowerCase()));
+    const foundTable = findTable();
     if (!foundTable) {
       return res.json({
         success: false,
-        error: `Table definition from SQL query context not found. Available tables: ${databaseTables[projectId].map(t => t.name).join(", ")}`,
+        error: `Table not found in query. Available tables: ${tables.map(t => t.name).join(", ") || "(none)"}`,
         rows: []
       });
     }
-    
-    // Check if query selects specific filter
-    if (queryTrimmed.includes("where")) {
-      const parts = queryTrimmed.split("where");
-      const condition = parts[1]?.trim() || "";
-      // Simple where field=val interpreter
-      const matchOperator = condition.includes("=") ? "=" : "like";
-      const filterParts = condition.split(matchOperator);
-      const rawField = filterParts[0]?.trim();
-      let rawVal = filterParts[1]?.trim().replace(/['"]/g, "") || "";
-      
-      const realField = Object.keys(foundTable.rows[0] || {}).find(k => k.toLowerCase() === rawField);
-      
-      if (realField) {
-        const filteredRows = foundTable.rows.filter(r => {
-          const val = String(r[realField]).toLowerCase();
-          return val.includes(rawVal.toLowerCase());
-        });
-        return res.json({
-          success: true,
-          command: "SELECT",
-          fields: foundTable.columns.map(c => c.name),
-          rowCount: filteredRows.length,
-          rows: filteredRows
-        });
+
+    let rows = foundTable.rows;
+    const whereMatch = rawSql.match(/where\s+(.+?)(\s+order\s+by\s+|\s+limit\s+|$)/i);
+    if (whereMatch) {
+      const conditions = parseWhereClause(whereMatch[1]);
+      if (conditions.length) {
+        rows = rows.filter(r => rowMatchesConditions(r, conditions, foundTable.columns));
       }
+    }
+
+    const limitMatch = rawSql.match(/limit\s+(\d+)/i);
+    if (limitMatch) {
+      rows = rows.slice(0, parseInt(limitMatch[1], 10));
     }
 
     return res.json({
       success: true,
       command: "SELECT",
       fields: foundTable.columns.map(c => c.name),
-      rowCount: foundTable.rows.length,
-      rows: foundTable.rows
+      rowCount: rows.length,
+      rows
     });
-  } 
-  
+  }
+
   if (queryTrimmed.startsWith("insert")) {
-    // INSERT INTO users_profiles (display_name, email) VALUES ('David', 'david@mail.com')
-    const foundTable = databaseTables[projectId].find(t => queryTrimmed.includes(t.name.toLowerCase()));
+    // INSERT INTO table (col1, col2) VALUES (val1, val2)
+    const foundTable = findTable();
     if (!foundTable) {
       return res.status(400).json({ error: "Target table not found." });
     }
 
-    // Generate standard interactive insertion row
+    const insertMatch = rawSql.match(/insert\s+into\s+[a-zA-Z0-9_]+\s*\(([^)]*)\)\s*values\s*\(([^)]*)\)/i);
     const newRow: Record<string, any> = {};
+
+    if (insertMatch) {
+      const cols = insertMatch[1].split(",").map(c => c.trim());
+      const vals = parseSqlValueList(insertMatch[2]);
+      cols.forEach((colName, idx) => {
+        const col = foundTable.columns.find(c => c.name.toLowerCase() === colName.toLowerCase());
+        if (col) {
+          newRow[col.name] = coerceValueForColumn(vals[idx] ?? "", col);
+        }
+      });
+    }
+
+    // Fill in any columns not supplied by the statement (PK / timestamp defaults only —
+    // never fabricate values for columns the caller actually specified).
     foundTable.columns.forEach(col => {
+      if (newRow[col.name] !== undefined) return;
       if (col.isPrimaryKey) {
-        newRow[col.name] = col.type === "uuid" ? "usr-" + generateId() : Math.floor(Math.random() * 1000000);
-      } else if (col.type === "boolean") {
-        newRow[col.name] = true;
+        newRow[col.name] = col.type === "uuid" ? "rec-" + generateId() : Math.floor(Math.random() * 1000000);
       } else if (col.type === "timestamp") {
         newRow[col.name] = new Date().toISOString().replace("T", " ").substring(0, 19);
-      } else if (col.type === "integer") {
-        newRow[col.name] = Math.floor(Math.random() * 5000);
+      } else if (col.defaultValue !== undefined) {
+        newRow[col.name] = coerceValueForColumn(String(col.defaultValue), col);
       } else {
-        newRow[col.name] = "New Mock Value";
+        newRow[col.name] = null;
       }
     });
 
@@ -1795,13 +1916,77 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
     });
   }
 
-  // Default fallback statement confirmation
-  return res.json({
-    success: true,
-    command: "EXPLAIN",
-    rowCount: 0,
-    rows: [],
-    message: "SQL statement accepted and interpreted successfully."
+  if (queryTrimmed.startsWith("update")) {
+    // UPDATE table SET col1 = val1, col2 = val2 WHERE ...
+    const foundTable = findTable();
+    if (!foundTable) {
+      return res.status(400).json({ error: "Target table not found." });
+    }
+
+    const setMatch = rawSql.match(/set\s+(.+?)\s+where\s+(.+)$/i) || rawSql.match(/set\s+(.+)$/i);
+    if (!setMatch) {
+      return res.status(400).json({ error: "Malformed UPDATE statement — missing SET clause." });
+    }
+    const setClause = setMatch[1];
+    const whereClause = setMatch[2];
+
+    const assignments = setClause.split(",").map(a => a.trim());
+    const updates: Array<{ field: string; val: string }> = [];
+    for (const a of assignments) {
+      const m = a.match(/^([a-zA-Z0-9_]+)\s*=\s*(.+)$/);
+      if (m) updates.push({ field: m[1].trim(), val: m[2].trim().replace(/^['"]|['"]$/g, "") });
+    }
+
+    const conditions = whereClause ? parseWhereClause(whereClause) : [];
+    let updatedCount = 0;
+    foundTable.rows.forEach(row => {
+      if (conditions.length && !rowMatchesConditions(row, conditions, foundTable.columns)) return;
+      updates.forEach(u => {
+        const col = foundTable.columns.find(c => c.name.toLowerCase() === u.field.toLowerCase());
+        if (col) row[col.name] = coerceValueForColumn(u.val, col);
+      });
+      updatedCount++;
+    });
+
+    return res.json({
+      success: true,
+      command: "UPDATE",
+      rowCount: updatedCount,
+      rows: foundTable.rows,
+      message: `Successfully executed: ${updatedCount} row(s) updated in ${foundTable.name}.`
+    });
+  }
+
+  if (queryTrimmed.startsWith("delete")) {
+    // DELETE FROM table WHERE ...
+    const foundTable = findTable();
+    if (!foundTable) {
+      return res.status(400).json({ error: "Target table not found." });
+    }
+
+    const whereMatch = rawSql.match(/where\s+(.+)$/i);
+    const conditions = whereMatch ? parseWhereClause(whereMatch[1]) : [];
+    const before = foundTable.rows.length;
+    if (conditions.length) {
+      foundTable.rows = foundTable.rows.filter(r => !rowMatchesConditions(r, conditions, foundTable.columns));
+    } else {
+      foundTable.rows = [];
+    }
+    const deletedCount = before - foundTable.rows.length;
+
+    return res.json({
+      success: true,
+      command: "DELETE",
+      rowCount: deletedCount,
+      rows: [],
+      message: `Successfully executed: ${deletedCount} row(s) deleted from ${foundTable.name}.`
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    error: "Unsupported SQL statement. Supported: SELECT, INSERT, UPDATE, DELETE.",
+    rows: []
   });
 });
 
@@ -3317,13 +3502,18 @@ User Request: ${prompt}` }] }
 app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, res) => {
   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
   const configuredKey = process.env.VORTEX_LIVE_API_KEY;
-  const hardcodedKey = process.env.VORTEX_LIVE_API_KEY || "vrx_agent_sk_live_999";
-  const sandboxKey = "vrx_agent_sk_sandbox_999";
-  
-  const isValid = authHeader && (
-    String(authHeader).includes(configuredKey as string) || 
-    String(authHeader).includes(hardcodedKey) ||
-    String(authHeader).includes(sandboxKey)
+  // Sandbox key is opt-in only via env flag — never hardcoded, never a silent fallback.
+  const sandboxKeyAllowed = process.env.VORTEX_ALLOW_SANDBOX_KEY === "true";
+  const sandboxKey = process.env.VORTEX_SANDBOX_API_KEY || "";
+
+  if (!configuredKey) {
+    console.error("[vortex] VORTEX_LIVE_API_KEY is not set — refusing all agent-deploy requests until configured.");
+    return res.status(503).json({ error: "Server misconfigured: VORTEX_LIVE_API_KEY is not set." });
+  }
+
+  const isValid = !!authHeader && (
+    String(authHeader).includes(configuredKey) ||
+    (sandboxKeyAllowed && !!sandboxKey && String(authHeader).includes(sandboxKey))
   );
 
   if (!isValid) {
