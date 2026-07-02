@@ -252,10 +252,13 @@ export default function App() {
 
   // Analytics Metrics endpoints state
   const [analyticsMetrics, setAnalyticsMetrics] = useState<any[]>([]);
+  // Core Web Vitals are REAL user-timing metrics measured in the browser via
+  // the Performance API (see the observer effect below) — not fabricated and
+  // not sourced from the backend (a Node server cannot measure client paint/input).
   const [analyticsVitals, setAnalyticsVitals] = useState<any>({
-    lcp: { value: 1.2, rating: "good" },
-    fid: { value: 24, rating: "good" },
-    cls: { value: 0.02, rating: "good" }
+    lcp: { value: 0, rating: "measuring" },
+    fid: { value: 0, rating: "measuring" },
+    cls: { value: 0, rating: "measuring" }
   });
   const [isTrafficSpikeActive, setIsTrafficSpikeActive] = useState(false);
 
@@ -779,7 +782,10 @@ export default function App() {
         .then((res) => res.json())
         .then((data) => {
           setAnalyticsMetrics(data.metrics);
-          setAnalyticsVitals(data.vitals);
+          // Only adopt backend vitals if it actually provides them. The real
+          // backend returns null (it can't measure client-side vitals), so the
+          // browser-measured values from the observer effect are kept intact.
+          if (data.vitals) setAnalyticsVitals(data.vitals);
         })
         .catch((err) => console.error("Telemetry failed", err));
     };
@@ -788,6 +794,48 @@ export default function App() {
     const interval = setInterval(fetchAnalytics, 10000);
     return () => clearInterval(interval);
   }, [isTrafficSpikeActive]);
+
+  // Real Core Web Vitals — measured live in this browser via the Performance
+  // API. LCP (largest-contentful-paint), CLS (layout-shift), FID (first-input).
+  // These are genuine user-timing metrics, not fabricated numbers.
+  useEffect(() => {
+    if (typeof PerformanceObserver === "undefined") return;
+    const rate = (metric: string, v: number) => {
+      if (metric === "lcp") return v <= 2.5 ? "good" : v <= 4.0 ? "needs-improvement" : "poor";
+      if (metric === "fid") return v <= 100 ? "good" : v <= 300 ? "needs-improvement" : "poor";
+      return v <= 0.1 ? "good" : v <= 0.25 ? "needs-improvement" : "poor"; // cls
+    };
+    const observers: PerformanceObserver[] = [];
+    let clsValue = 0;
+    const safeObserve = (type: string, cb: (entries: PerformanceEntryList) => void) => {
+      try {
+        const po = new PerformanceObserver((list) => cb(list.getEntries()));
+        po.observe({ type, buffered: true } as any);
+        observers.push(po);
+      } catch { /* entry type unsupported in this browser */ }
+    };
+    safeObserve("largest-contentful-paint", (entries) => {
+      const last: any = entries[entries.length - 1];
+      if (last) {
+        const secs = parseFloat((last.renderTime || last.loadTime || last.startTime) / 1000 as any);
+        const v = parseFloat(secs.toFixed(2));
+        setAnalyticsVitals((prev: any) => ({ ...prev, lcp: { value: v, rating: rate("lcp", v) } }));
+      }
+    });
+    safeObserve("layout-shift", (entries) => {
+      for (const e of entries as any[]) if (!e.hadRecentInput) clsValue += e.value;
+      const v = parseFloat(clsValue.toFixed(3));
+      setAnalyticsVitals((prev: any) => ({ ...prev, cls: { value: v, rating: rate("cls", v) } }));
+    });
+    safeObserve("first-input", (entries) => {
+      const first: any = entries[0];
+      if (first) {
+        const v = Math.round(first.processingStart - first.startTime);
+        setAnalyticsVitals((prev: any) => ({ ...prev, fid: { value: v, rating: rate("fid", v) } }));
+      }
+    });
+    return () => observers.forEach((o) => o.disconnect());
+  }, []);
 
   // Handler: Deploy custom repository entry
   const handleDeployNew = async (e: React.FormEvent) => {
