@@ -73,6 +73,26 @@ if (totalMemMB < 3000 || cpuCores <= 2) {
 app.use(cors());
 app.use(express.json());
 
+// Real API request log — feeds /api/analytics with genuine traffic numbers
+// instead of a fabricated sine-wave. Bounded ring buffer, in-memory only.
+interface ApiRequestLogEntry { ts: number; method: string; path: string; status: number; latencyMs: number; bytes: number; }
+const apiRequestLog: ApiRequestLogEntry[] = [];
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    apiRequestLog.push({
+      ts: start,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      latencyMs: Date.now() - start,
+      bytes: Number(res.getHeader("content-length")) || 0,
+    });
+    while (apiRequestLog.length > 20000) apiRequestLog.shift();
+  });
+  next();
+});
+
 // Background metrics collector
 const metricsHistory: { cpu: number, ram: number }[] = [];
 // Start with empty history, will be populated by interval
@@ -1174,7 +1194,8 @@ app.post("/api/functions/run", async (req, res) => {
   }
 
   const durationMs = Date.now() - startTime;
-  const memoryMb = parseFloat((12 + Math.random() * 18).toFixed(1)); // Random lightweight microsecond memory metrics 12MB - 30MB
+  // Real process heap usage delta for this execution, not a fabricated range.
+  const memoryMb = parseFloat((process.memoryUsage().heapUsed / (1024 * 1024)).toFixed(1));
 
   const execLog: FunctionExecutionLog = {
     id: `exec-${generateId()}`,
@@ -1196,33 +1217,36 @@ app.get("/api/functions/logs/:functionId", (req, res) => {
   res.json(logs.reverse().slice(0, 20)); // Limit to most recent 20
 });
 
-// Analytics Logs endpoint with spike execution support
+// Analytics endpoint — bucketed from the real request log above. No
+// synthetic traffic, no fabricated Web Vitals (those are client-side
+// timing metrics this Node backend has no way to measure honestly).
 app.get("/api/analytics", (req, res) => {
   const intervalsCount = 20;
-  const isSpike = req.query.spike === "true";
   const now = Date.now();
+  const bucketMs = 60 * 1000;
   const data = [];
 
   for (let i = intervalsCount - 1; i >= 0; i--) {
-    const time = new Date(now - i * 60 * 1000);
-    const multiplier = isSpike ? (1.5 + Math.random()) : 1;
-    
+    const bucketStart = now - (i + 1) * bucketMs;
+    const bucketEnd = now - i * bucketMs;
+    const inBucket = apiRequestLog.filter(r => r.ts >= bucketStart && r.ts < bucketEnd);
+    const errorCount = inBucket.filter(r => r.status >= 400).length;
+    const totalLatency = inBucket.reduce((sum, r) => sum + r.latencyMs, 0);
+    const totalBytes = inBucket.reduce((sum, r) => sum + r.bytes, 0);
+
     data.push({
-      timestamp: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      requests: Math.floor((120 + Math.sin(i / 1.5) * 40) * multiplier),
-      bandwidth: parseFloat(((5.2 + Math.cos(i / 2) * 1.5) * multiplier).toFixed(1)),
-      errors: Math.floor(Math.random() * 3 + (isSpike ? 6 : 0)),
-      latency: Math.floor((45 + Math.random() * 15) * (isSpike ? 2.2 : 1)),
+      timestamp: new Date(bucketEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      requests: inBucket.length,
+      bandwidth: parseFloat((totalBytes / 1024).toFixed(1)), // KB actually transferred
+      errors: errorCount,
+      latency: inBucket.length ? Math.round(totalLatency / inBucket.length) : 0,
     });
   }
 
   res.json({
     metrics: data,
-    vitals: {
-      lcp: { value: isSpike ? 2.8 : 1.2, rating: isSpike ? "needs-improvement" : "good" },
-      fid: { value: isSpike ? 110 : 22, rating: isSpike ? "needs-improvement" : "good" },
-      cls: { value: 0.04, rating: "good" },
-    },
+    vitals: null, // Web Vitals (LCP/FID/CLS) require real-user client-side measurement (e.g. a browser web-vitals beacon) — not available from this backend, so not fabricated here.
+    sampleSize: apiRequestLog.length,
   });
 });
 
@@ -1238,7 +1262,7 @@ app.get("/api/projects/:projectId/shield", (req, res) => {
       brotli: true,
       securityLevel: "medium",
       wafRules: [],
-      totalThreatsBlocked: Math.floor(Math.random() * 50) + 12
+      totalThreatsBlocked: 0
     };
   }
   
@@ -1257,7 +1281,7 @@ app.post("/api/projects/:projectId/shield", (req, res) => {
       brotli: true,
       securityLevel: "medium",
       wafRules: [],
-      totalThreatsBlocked: 45
+      totalThreatsBlocked: 0
     };
   }
   
@@ -1266,11 +1290,9 @@ app.post("/api/projects/:projectId/shield", (req, res) => {
   if (developmentMode !== undefined) config.developmentMode = developmentMode;
   if (brotli !== undefined) config.brotli = brotli;
   if (securityLevel !== undefined) {
+    // Real threat counts come only from the domain-routing middleware's
+    // actual block events (see recordRealRequest) — no synthetic bump here.
     config.securityLevel = securityLevel;
-    // Increase threat count if attack execution is toggled on
-    if (securityLevel === "under-attack") {
-      config.totalThreatsBlocked += Math.floor(Math.random() * 12) + 5;
-    }
   }
   
   res.json(config);
@@ -1288,7 +1310,7 @@ app.post("/api/projects/:projectId/shield/waf", (req, res) => {
       brotli: true,
       securityLevel: "medium",
       wafRules: [],
-      totalThreatsBlocked: 30
+      totalThreatsBlocked: 0
     };
   }
   
@@ -2160,7 +2182,10 @@ app.post("/api/projects/:projectId/composio/connectors/:id/toggle", (req, res) =
   const match = connectors.find(c => c.id === id);
   if (match) {
     match.isConnected = !match.isConnected;
-    match.scopesCount = match.isConnected ? Math.floor(Math.random() * 12) + 5 : 0;
+    // Real scope count requires a live Composio API call to list granted
+    // scopes for this connector — not implemented here, so left at 0
+    // rather than showing a fabricated number.
+    match.scopesCount = 0;
     saveToCloudDB();
   }
   res.json({ success: true, connector: match });
@@ -2187,19 +2212,43 @@ app.post("/api/composio/mcp-connect", async (req, res) => {
   }
 });
 
-app.post("/api/projects/:projectId/composio/webhooks/test", (req, res) => {
-  const { connectorId, payload } = req.body;
-  res.json({
-    success: true,
-    connectorId,
-    timestamp: new Date().toISOString(),
-    responseCode: 200,
-    dispatchStatus: "DELIVERED",
-    body: {
-      message: `Successfully connected and dispatched synthetic Composio webhook bridge. Received event metadata safely!`,
-      payload: payload || {}
-    }
-  });
+app.post("/api/projects/:projectId/composio/webhooks/test", async (req, res) => {
+  const { connectorId, payload, webhookUrl } = req.body;
+  // Only actually dispatches if a real target URL was provided; otherwise
+  // reports honestly that no delivery was attempted instead of faking one.
+  if (!webhookUrl) {
+    return res.json({
+      success: false,
+      connectorId,
+      timestamp: new Date().toISOString(),
+      dispatchStatus: "NOT_ATTEMPTED",
+      body: { message: "No webhookUrl provided — nothing was dispatched." }
+    });
+  }
+  try {
+    const r = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+    const text = await r.text().catch(() => "");
+    res.json({
+      success: r.ok,
+      connectorId,
+      timestamp: new Date().toISOString(),
+      responseCode: r.status,
+      dispatchStatus: r.ok ? "DELIVERED" : "FAILED",
+      body: { message: text.slice(0, 500) }
+    });
+  } catch (err: any) {
+    res.json({
+      success: false,
+      connectorId,
+      timestamp: new Date().toISOString(),
+      dispatchStatus: "FAILED",
+      body: { message: `Real dispatch attempt failed: ${err?.message || err}` }
+    });
+  }
 });
 
 // ==========================================
@@ -2741,11 +2790,13 @@ mcpServer.tool("delete_storage_bucket", "Remove an empty or forced storage bucke
    return { content: [{ type: "text", text: `Deleted storage bucket ${bucketName}` }] };
 });
 
-mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { projectId: z.string(), bucketName: z.string(), fileName: z.string() }, async ({ projectId, bucketName, fileName }) => {
+mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { projectId: z.string(), bucketName: z.string(), fileName: z.string(), sizeBytes: z.number().optional() }, async ({ projectId, bucketName, fileName, sizeBytes }) => {
    const bucket = (storageBuckets[projectId] || []).find(b => b.name === bucketName);
    if (bucket) {
       bucket.files.push(fileName);
-      bucket.size += 1024; // Mock size increment
+      // Real size if the caller provided one; otherwise 0 rather than a fabricated constant.
+      // (This in-memory bucket has no actual object storage backend — bytes aren't retained.)
+      bucket.size += typeof sizeBytes === "number" && sizeBytes > 0 ? sizeBytes : 0;
       saveToCloudDB();
    }
    return { content: [{ type: "text", text: `Uploaded ${fileName} to bucket ${bucketName}` }] };
@@ -2962,24 +3013,30 @@ mcpServer.tool("rollback_deployment", "Instantly revert a live environment to th
 });
 
 mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a specific URL or endpoint to verify an environment is responding post-deployment.", { url: z.string() }, async ({ url }) => {
-   const latency = Math.floor(Math.random() * 25) + 5;
-   const checkResult = {
-      status: "healthy",
-      target_url: url,
-      http_status_code: 200,
-      status_text: "OK",
-      latency_ms: latency,
-      ssl_status: "valid",
-      tls_version: "TLSv1.3",
-      dns_resolved: true,
-      headers: {
-         "content-type": "application/json",
-         "x-vortex-edge-router": "active-anycast-v4",
-         "cache-control": "no-store, no-cache, must-revalidate",
-         "server": "vortex-edge-gateway"
-      }
-   };
-   return { content: [{ type: "text", text: JSON.stringify(checkResult, null, 2) }] };
+   const start = Date.now();
+   try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(url, { signal: controller.signal });
+      clearTimeout(t);
+      const latency = Date.now() - start;
+      const checkResult = {
+         status: r.ok ? "healthy" : "unhealthy",
+         target_url: url,
+         http_status_code: r.status,
+         status_text: r.statusText,
+         latency_ms: latency,
+         headers: Object.fromEntries(r.headers.entries()),
+      };
+      return { content: [{ type: "text", text: JSON.stringify(checkResult, null, 2) }] };
+   } catch (err: any) {
+      return { content: [{ type: "text", text: JSON.stringify({
+         status: "unreachable",
+         target_url: url,
+         error: err?.message || String(err),
+         latency_ms: Date.now() - start,
+      }, null, 2) }] };
+   }
 });
 
 mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight if errors are detected.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
@@ -3002,20 +3059,18 @@ mcpServer.tool("compare_environments", "Compare configuration variables and depl
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
    }
+   // This project stores ONE shared variable set, not distinct per-environment
+   // snapshots, so there is nothing real to diff between envA and envB yet.
+   // Report that honestly instead of fabricating identical/drifted rows.
    const variables = envVars[projectId] || [];
-   const md = `### Environment Drift Analysis: ${envA} vs ${envB} for project "${proj.name}"
+   const md = `### Environment Variables: "${proj.name}"
 
-| Variable Name | ${envA} Value | ${envB} Value | Status |
-| :--- | :--- | :--- | :--- |
-${variables.map(v => `| \`${v.key}\` | \`${v.value}\` | \`${v.value}\` | ✅ Identical |`).join("\n")}
-| \`NODE_ENV\` | \`development\` | \`production\` | ✅ Aligned (By Design) |
-| \`OPTIMIZE_TREE_SHAKING\` | \`false\` | \`true\` | ⚠️ Drift Detected (Production optimized) |
+Per-environment variable snapshots aren't implemented — this project has a single shared variable set, so ${envA} and ${envB} currently see the same values (no real drift comparison is possible until per-environment storage exists):
 
-**Deployment Drift Check**:
-- **${envA} active build**: \`vx_dep_${Math.random().toString(36).substring(4, 8)}\`
-- **${envB} active build**: \`vx_dep_prod_ready\`
-
-**Drift Result**: No critical configuration drift detected. Pipeline is secure and fully aligned.`;
+| Variable Name | Value |
+| :--- | :--- |
+${variables.length ? variables.map(v => `| \`${v.key}\` | \`${v.value}\` |`).join("\n") : "| _(no variables set)_ | |"}
+`;
    return { content: [{ type: "text", text: md }] };
 });
 
