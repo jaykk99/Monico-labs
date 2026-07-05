@@ -28,8 +28,8 @@ Copy `.env.example` to `.env` and set these before running the server:
 Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents can connect and execute commands programmatically.
 
 ### 1. Connecting via SSE
-* **SSE Endpoint:** `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`
-* **Message Posting Endpoint:** `POST http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp`
+* **SSE Endpoint:** `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/mcp/sse`
+* **Message Posting Endpoint:** `POST http://<VORTEX_HOST>:<VORTEX_PORT>/api/mcp`
 * **Authentication Header:**
   ```http
   Authorization: Bearer <VRX_MCP_AUTH_TOKEN>
@@ -40,8 +40,8 @@ Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents
 - Host: `localhost`, Port: `3000`, Token: `vrx_agent_sk_live_999`
 
 ### 2. SSE Connection Flow
-1. Open an EventSource connection to `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`.
-2. The server will respond with an SSE connection stream and a custom connection URI for sending messages, or you can POST JSON-RPC payloads directly to `/api/monico-labs.mcp?sessionId=<session-id>`.
+1. Open an EventSource connection to `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/mcp/sse`.
+2. The server will respond with an SSE connection stream and a custom connection URI for sending messages, or you can POST JSON-RPC payloads directly to `/api/mcp?sessionId=<session-id>`.
 3. Provide your auth token in the authorization headers of all requests.
 
 ---
@@ -351,6 +351,6 @@ Vortex is designed to automatically adapt its resource footprint based on the av
    ```
    On a higher-spec device you can instead run `npm run build && npm run start` for the optimized production bundle.
 
-> **Cross-device access:** Once `VORTEX_HOST` is set to your LAN IP, other devices on the same Wi-Fi can reach the MCP server at `http://<VORTEX_HOST>:<VORTEX_PORT>/api/monico-labs.mcp/sse`.
+> **Cross-device access:** Once `VORTEX_HOST` is set to your LAN IP, other devices on the same Wi-Fi can reach the MCP server at `http://<VORTEX_HOST>:<VORTEX_PORT>/api/mcp/sse`.
 
 *Note: When running on a low-end environment (less than 3GB RAM or 2 CPU cores), Vortex automatically switches to the `bad` hardware optimization profile, reducing background metrics intervals to prevent Node.js event loop hangs.*
