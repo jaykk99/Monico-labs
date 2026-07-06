@@ -77,6 +77,92 @@ async function vortexEnsureRegistry(): Promise<void> {
     );
   `);
 }
+
+// ─── Real Vercel deployments for the deployment MCP tools ──────────────────────
+// Set VERCEL_API_TOKEN (+ optionally VERCEL_TEAM_ID) to activate. deploy_project /
+// trigger_deployment now create ACTUAL Vercel projects + deployments with real,
+// publicly reachable *.vercel.app URLs, instead of a fake internal /p/<name> route.
+const VERCEL_API_TOKEN = process.env.VERCEL_API_TOKEN || "";
+const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || "";
+
+if (VERCEL_API_TOKEN) {
+  console.log("[vortex-deploy] VERCEL_API_TOKEN detected — real Vercel deployments enabled.");
+} else {
+  console.warn("[vortex-deploy] VERCEL_API_TOKEN not set — deployment MCP tools will report an error instead of simulating a deploy.");
+}
+
+function vortexVercelTeamQS(extra: string = ""): string {
+  const parts: string[] = [];
+  if (VERCEL_TEAM_ID) parts.push(`teamId=${VERCEL_TEAM_ID}`);
+  if (extra) parts.push(extra);
+  return parts.length ? `?${parts.join("&")}` : "";
+}
+
+async function vortexVercelFetch(path: string, opts: { method?: string; body?: unknown; qs?: string } = {}): Promise<{ ok: boolean; status: number; json: any }> {
+  const url = `https://api.vercel.com${path}${vortexVercelTeamQS(opts.qs)}`;
+  const resp = await fetch(url, {
+    method: opts.method || "GET",
+    headers: {
+      "Authorization": `Bearer ${VERCEL_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let json: any = null;
+  try { json = await resp.json(); } catch { /* no body */ }
+  return { ok: resp.ok, status: resp.status, json };
+}
+
+function vortexVercelProjectName(prj: { id: string; name: string }): string {
+  return `vortex-${vortexSanitizeIdent(prj.name)}-${prj.id.replace(/[^a-z0-9]/gi, "").slice(-8)}`.slice(0, 52);
+}
+
+// Creates the real Vercel project on first deploy (idempotent), disables Vercel's
+// default "Deployment Protection" SSO wall so the site is actually publicly
+// reachable (this project is meant to host public sites, not gated previews).
+async function vortexEnsureVercelProject(prj: Project): Promise<{ id: string; name: string } | null> {
+  if (!VERCEL_API_TOKEN) return null;
+  if (prj.vercelProjectId && prj.vercelProjectName) {
+    return { id: prj.vercelProjectId, name: prj.vercelProjectName };
+  }
+  const name = vortexVercelProjectName(prj);
+  // Try to fetch an existing project with this name first (in case of a previous partial run).
+  const existing = await vortexVercelFetch(`/v9/projects/${name}`);
+  let vercelProjectId: string;
+  if (existing.ok) {
+    vercelProjectId = existing.json.id;
+  } else {
+    const created = await vortexVercelFetch(`/v9/projects`, { method: "POST", body: { name } });
+    if (!created.ok) return null;
+    vercelProjectId = created.json.id;
+  }
+  // Disable the SSO/auth wall so deployments are actually public.
+  await vortexVercelFetch(`/v9/projects/${vercelProjectId}`, { method: "PATCH", body: { ssoProtection: null } });
+  prj.vercelProjectId = vercelProjectId;
+  prj.vercelProjectName = name;
+  saveToCloudDB();
+  return { id: vercelProjectId, name };
+}
+
+async function vortexVercelDeploy(prj: Project, html: string): Promise<{ ok: boolean; deploymentId?: string; url?: string; error?: string; status?: string }> {
+  if (!VERCEL_API_TOKEN) return { ok: false, error: "VERCEL_API_TOKEN not configured" };
+  const vprj = await vortexEnsureVercelProject(prj);
+  if (!vprj) return { ok: false, error: "Failed to create/resolve Vercel project" };
+
+  const dep = await vortexVercelFetch(`/v13/deployments`, {
+    method: "POST",
+    body: {
+      name: vprj.name,
+      files: [{ file: "index.html", data: html }],
+      target: "production",
+      projectSettings: { framework: null },
+    },
+  });
+  if (!dep.ok) return { ok: false, error: dep.json?.error?.message || `Vercel API error (${dep.status})` };
+
+  const url = `https://${vprj.name}.vercel.app`;
+  return { ok: true, deploymentId: dep.json.id, url, status: dep.json.readyState || dep.json.status };
+}
 const firestoreEnabled = () => db !== null;
 
 import localtunnel from "localtunnel";
@@ -192,6 +278,8 @@ interface Project {
   branch: string;
   createdAt: string;
   activeDeploymentId: string;
+  vercelProjectId?: string;
+  vercelProjectName?: string;
 }
 
 interface Deployment {
@@ -204,6 +292,8 @@ interface Deployment {
   commitHash: string;
   buildLogs: string[];
   deployedHtml?: string;
+  vercelDeploymentId?: string;
+  vercelUrl?: string;
 }
 
 interface ServerlessFunction {
@@ -2305,7 +2395,7 @@ const mcpServer = new McpServer({
   version: "1.0.0"
 });
 
-mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge via MCP.", {
+mcpServer.tool("deploy_project", "Deploys a project to a REAL, publicly reachable Vercel deployment via MCP.", {
   projectId: z.string().optional(),
   html: z.string().optional(),
   commitMessage: z.string().optional()
@@ -2313,24 +2403,32 @@ mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge 
    const prj = projectId ? projects.find(p => p.id === projectId) : projects[0];
    if (!prj) return { content: [{ type: "text", text: "Error: No projects in workspace." }] };
 
+   const deployedHtml = html || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>Deployed via MCP Server</h1></div>`;
    const generatedIdVal = `dep-${generateId()}`;
    const commitHashHex = Math.random().toString(16).substring(2, 9);
-   
+
+   const vercelResult = await vortexVercelDeploy(prj, deployedHtml);
+   if (!vercelResult.ok) {
+     return { content: [{ type: "text", text: `Error: Real deployment failed — ${vercelResult.error}` }] };
+   }
+
    const newDep: Deployment = {
      id: generatedIdVal,
      projectId: prj.id,
      status: "ready",
-     previewUrl: `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generatedIdVal}`,
+     previewUrl: vercelResult.url!,
      createdAt: new Date().toISOString(),
      commitMessage: commitMessage || "Agent Native MCP Deployment",
      commitHash: commitHashHex,
      buildLogs: [
        "[vortex-agent] Authenticated via MCP Protocol JSON-RPC.",
-       "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.",
-       "[vortex-agent] Native Edge domain assignment provisioned.",
-       "[vortex-agent] Deployment successful! 🎉"
+       "[vortex-agent] Uploading build to real Vercel deployment API.",
+       `[vortex-agent] Vercel deployment id: ${vercelResult.deploymentId}`,
+       `[vortex-agent] Deployment successful! Live at ${vercelResult.url} 🎉`
      ],
-     deployedHtml: html || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>Deployed via MCP Server</h1></div>`
+     deployedHtml,
+     vercelDeploymentId: vercelResult.deploymentId,
+     vercelUrl: vercelResult.url,
    };
 
    deployments.unshift(newDep);
@@ -2338,7 +2436,7 @@ mcpServer.tool("deploy_project", "Deploys a project natively on the vortex edge 
    saveToCloudDB();
 
    return {
-     content: [{ type: "text", text: `Deployment successful. Preview routing active for: ${newDep.previewUrl}` }]
+     content: [{ type: "text", text: `Deployment successful. Real, publicly live at: ${newDep.previewUrl}` }]
    };
 });
 
@@ -2447,16 +2545,35 @@ mcpServer.tool("edit_project", "Edits a project configuration.", {
    return { content: [{ type: "text", text: `Project ${projectId} updated successfully` }] };
 });
 
-mcpServer.tool("add_domain", "Allocates or adds a domain to a project.", {
+mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real custom domains (e.g. mysite.com) are actually attached via the Vercel domains API — you'll then need to point its DNS at Vercel. Bare names with no valid TLD just get you the real *.vercel.app URL.", {
   projectId: z.string(),
   domainName: z.string()
 }, async ({ projectId, domainName }) => {
    if (!domains[projectId]) domains[projectId] = [];
+   const isRealDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domainName) && !domainName.endsWith(".vercel.app");
+   const prj = projects.find(p => p.id === projectId);
+
+   if (isRealDomain && prj?.vercelProjectId && VERCEL_API_TOKEN) {
+     const res = await vortexVercelFetch(`/v10/projects/${prj.vercelProjectId}/domains`, { method: "POST", body: { name: domainName } });
+     if (!res.ok) {
+       return { content: [{ type: "text", text: `Error attaching real domain ${domainName} via Vercel: ${res.json?.error?.message || res.status}. (You'll also need to own this domain and point its DNS at Vercel.)` }] };
+     }
+     if (!domains[projectId].includes(domainName)) domains[projectId].push(domainName);
+     logMcpAction(projectId, `Attached real custom domain via Vercel: ${domainName}`);
+     const verification = res.json.verification;
+     const verifyNote = verification?.length ? ` DNS verification still required: ${JSON.stringify(verification)}` : " Domain is verified and active.";
+     return { content: [{ type: "text", text: `Domain ${domainName} really attached to the Vercel project.${verifyNote}` }] };
+   }
+
    if (!domains[projectId].includes(domainName)) {
       domains[projectId].push(domainName);
       logMcpAction(projectId, `Added custom domain: ${domainName}`);
    }
-   return { content: [{ type: "text", text: `Domain ${domainName} added to project ${projectId}` }] };
+   const liveUrl = prj?.vercelProjectName ? `https://${prj.vercelProjectName}.vercel.app` : null;
+   const note = liveUrl
+     ? ` Note: "${domainName}" isn't a real, ownable domain, so nothing was attached at the DNS level — your project's real live URL is ${liveUrl}.`
+     : "";
+   return { content: [{ type: "text", text: `Domain ${domainName} added to project ${projectId}.${note}` }] };
 });
 
 mcpServer.tool("list_workspaces", "Lists all workspaces.", {}, async () => {
@@ -2523,27 +2640,38 @@ mcpServer.tool("create_database_service", "Creates a database service.", {
    return { content: [{ type: "text", text: `Database service ${serviceName} created` }] };
 });
 
-mcpServer.tool("trigger_deployment", "Triggers a deployment for a project.", {
+mcpServer.tool("trigger_deployment", "Triggers a REAL redeployment for a project on Vercel, reusing its last deployed content.", {
   projectId: z.string(),
   commitMessage: z.string().optional()
 }, async ({ projectId, commitMessage }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: "Project not found" }] };
-   
+
+   const lastDep = deployments.find(d => d.projectId === projectId && d.deployedHtml);
+   const html = lastDep?.deployedHtml || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>${prj.name}</h1><p>Redeployed via MCP</p></div>`;
+
+   const vercelResult = await vortexVercelDeploy(prj, html);
+   if (!vercelResult.ok) {
+     return { content: [{ type: "text", text: `Error: Real deployment failed — ${vercelResult.error}` }] };
+   }
+
    const newDep: Deployment = {
      id: `dep-${generateId()}`,
      projectId,
      status: "ready",
      createdAt: new Date().toISOString(),
-     previewUrl: `http://${VORTEX_HOST}:${PORT}/p/${prj.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${generateId().slice(0,4)}`,
+     previewUrl: vercelResult.url!,
      commitMessage: commitMessage || "Manual deployment via MCP",
      commitHash: `git-${generateId()}`,
-     buildLogs: ["Deployment triggered via MCP"]
+     buildLogs: [`Real Vercel deployment triggered via MCP (id: ${vercelResult.deploymentId})`],
+     deployedHtml: html,
+     vercelDeploymentId: vercelResult.deploymentId,
+     vercelUrl: vercelResult.url,
    };
    deployments.unshift(newDep);
    prj.activeDeploymentId = newDep.id;
-   logMcpAction(projectId, `Triggered container deployment: ${newDep.commitMessage}`);
-   return { content: [{ type: "text", text: `Deployment triggered successfully: ${newDep.previewUrl}` }] };
+   logMcpAction(projectId, `Triggered real Vercel deployment: ${newDep.commitMessage}`);
+   return { content: [{ type: "text", text: `Deployment triggered successfully. Real, publicly live at: ${newDep.previewUrl}` }] };
 });
 
 mcpServer.tool("list_deployments_errors", "Gets deployment errors.", {
@@ -3042,7 +3170,7 @@ mcpServer.tool("list_team_members", "Audit who currently has access to the contr
 });
 
 // Disaster Recovery & Rollbacks
-mcpServer.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit without manual intervention.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+mcpServer.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit — really re-points production traffic on Vercel when the deployments are real.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
@@ -3054,12 +3182,24 @@ mcpServer.tool("rollback_deployment", "Instantly revert a live environment to th
    // The current active one might be index 0, so the next stable is index 1
    const currentActiveId = proj.activeDeploymentId;
    const nextStableDep = readyDeps.find(d => d.id !== currentActiveId) || readyDeps[1];
-   if (nextStableDep) {
-      proj.activeDeploymentId = nextStableDep.id;
-      saveToCloudDB();
-      return { content: [{ type: "text", text: `Success: Instantly reverted environment "${environment}" for project "${proj.name}" to the previous stable release commit (${nextStableDep.commitHash}) "${nextStableDep.commitMessage}". Switched active deployment ID from ${currentActiveId} to ${nextStableDep.id}.` }] };
+   if (!nextStableDep) {
+      return { content: [{ type: "text", text: `Error: Could not identify stable previous release commit.` }] };
    }
-   return { content: [{ type: "text", text: `Error: Could not identify stable previous release commit.` }] };
+
+   // If both deployments are real Vercel deployments, actually promote the previous one to production.
+   if (proj.vercelProjectId && nextStableDep.vercelDeploymentId && VERCEL_API_TOKEN) {
+     const promote = await vortexVercelFetch(`/v10/projects/${proj.vercelProjectId}/promote/${nextStableDep.vercelDeploymentId}`, { method: "POST" });
+     if (!promote.ok) {
+       return { content: [{ type: "text", text: `Error: Vercel promote-to-production failed — ${promote.json?.error?.message || promote.status}` }] };
+     }
+     proj.activeDeploymentId = nextStableDep.id;
+     saveToCloudDB();
+     return { content: [{ type: "text", text: `Success: Really promoted the previous Vercel deployment (${nextStableDep.vercelDeploymentId}) back to production for "${proj.name}". Live at ${nextStableDep.vercelUrl}. Commit: "${nextStableDep.commitMessage}".` }] };
+   }
+
+   proj.activeDeploymentId = nextStableDep.id;
+   saveToCloudDB();
+   return { content: [{ type: "text", text: `Success: Instantly reverted environment "${environment}" for project "${proj.name}" to the previous stable release commit (${nextStableDep.commitHash}) "${nextStableDep.commitMessage}". Switched active deployment ID from ${currentActiveId} to ${nextStableDep.id}.` }] };
 });
 
 mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a specific URL or endpoint to verify an environment is responding post-deployment.", { url: z.string() }, async ({ url }) => {
@@ -3089,10 +3229,20 @@ mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a speci
    }
 });
 
-mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight if errors are detected.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
+mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight — really cancels the build on Vercel when the deployment is real.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
    const dep = deployments.find(d => d.id === deploymentId && d.projectId === projectId);
    if (!dep) {
       return { content: [{ type: "text", text: `Error: Deployment ${deploymentId} for project ${projectId} not found.` }] };
+   }
+   if (dep.vercelDeploymentId && VERCEL_API_TOKEN) {
+     const cancel = await vortexVercelFetch(`/v12/deployments/${dep.vercelDeploymentId}/cancel`, { method: "PATCH" });
+     if (!cancel.ok) {
+       return { content: [{ type: "text", text: `Info: Vercel could not cancel deployment ${dep.vercelDeploymentId} (it may have already finished): ${cancel.json?.error?.message || cancel.status}` }] };
+     }
+     dep.status = "failed";
+     dep.buildLogs.push(`[vortex] [${new Date().toISOString()}] Real Vercel deployment cancelled via API.`);
+     saveToCloudDB();
+     return { content: [{ type: "text", text: `Success: Really cancelled the Vercel build for deployment ${deploymentId} (Vercel id: ${dep.vercelDeploymentId}).` }] };
    }
    if (dep.status === "building") {
       dep.status = "failed";
