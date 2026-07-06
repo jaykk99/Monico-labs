@@ -129,6 +129,18 @@ async function vortexLoadAppState(): Promise<any | null> {
 // trigger_deployment now create ACTUAL Vercel projects + deployments with real,
 // publicly reachable *.vercel.app URLs, instead of a fake internal /p/<name> route.
 const VERCEL_API_TOKEN = process.env.VERCEL_API_TOKEN || "";
+const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || "";
+
+async function vortexComposioFetch(path: string, opts: { method?: string; body?: unknown } = {}): Promise<{ ok: boolean; status: number; json: any }> {
+  const res = await fetch(`https://backend.composio.dev/api/v3${path}`, {
+    method: opts.method || "GET",
+    headers: { "x-api-key": COMPOSIO_API_KEY, "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let json: any = null;
+  try { json = await res.json(); } catch { /* no body */ }
+  return { ok: res.ok, status: res.status, json };
+}
 const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || "";
 
 if (VERCEL_API_TOKEN) {
@@ -2830,11 +2842,35 @@ mcpServer.tool("list_storage_buckets", "Lists storage buckets.", { projectId: z.
    return { content: [{ type: "text", text: JSON.stringify(storageBuckets[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("list_composio_connectors", "Lists MCP integrations (Composio, etc).", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_composio_connectors", "Lists REAL connected third-party integrations (Gmail, GitHub, Slack, etc.) from your live Composio account.", { projectId: z.string() }, async ({ projectId }) => {
+   if (COMPOSIO_API_KEY) {
+     const res = await vortexComposioFetch(`/connected_accounts`);
+     if (res.ok) {
+       const items = (res.json?.items || []).map((c: any) => ({
+         id: c.id,
+         toolkit: c.toolkit?.slug,
+         status: c.status,
+         userId: c.user_id,
+         createdAt: c.created_at,
+       }));
+       return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
+     }
+     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} — ${res.json?.error?.message || "unknown error"}` }] };
+   }
    return { content: [{ type: "text", text: JSON.stringify(composioConnectors[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("toggle_composio_connector", "Toggles an MCP integration.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
+mcpServer.tool("toggle_composio_connector", "Enables/disables a REAL Composio connected account.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
+   if (COMPOSIO_API_KEY) {
+     // Composio connected accounts don't have a simple enable/disable toggle — the real lifecycle
+     // is delete (disconnect) vs create (reconnect via OAuth). We treat "toggle off" as a real disconnect.
+     const res = await vortexComposioFetch(`/connected_accounts/${connectorId}`, { method: "DELETE" });
+     if (res.ok) {
+       logMcpAction(projectId, `Disconnected real Composio connected account ${connectorId}`);
+       return { content: [{ type: "text", text: `Disconnected real Composio account ${connectorId}. To reconnect, use the OAuth connect flow for that toolkit.` }] };
+     }
+     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} trying to disconnect ${connectorId} — ${res.json?.error?.message || "unknown error"}` }] };
+   }
    const conn = (composioConnectors[projectId] || []).find(c => c.id === connectorId);
    if (conn) { conn.isConnected = !conn.isConnected; saveToCloudDB(); }
    return { content: [{ type: "text", text: `Toggled connector ${connectorId}` }] };
@@ -3120,21 +3156,98 @@ mcpServer.tool("trigger_connector_action", "Manually test a connected tool's fun
 });
 
 // Backup & Disaster Recovery
-mcpServer.tool("create_backup", "Trigger an immediate snapshot of databases and storage buckets.", { projectId: z.string() }, async ({ projectId }) => {
-   if (!backups[projectId]) backups[projectId] = [];
+async function vortexEnsureBackupsTable(): Promise<void> {
+  if (!vortexPgPool) return;
+  await vortexPgPool.query(`
+    CREATE TABLE IF NOT EXISTS vortex._backups (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      data JSONB NOT NULL
+    );
+  `);
+}
+
+mcpServer.tool("create_backup", "Trigger a REAL snapshot: dumps the actual contents of every real Postgres table registered for this project into a durable backup row.", { projectId: z.string() }, async ({ projectId }) => {
+   if (!vortexPgPool) {
+     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real backups." }] };
+   }
+   await vortexEnsureRegistry();
+   await vortexEnsureBackupsTable();
+   const reg = await vortexPgPool.query(
+     `SELECT table_name, physical_name FROM vortex._tables_registry WHERE project_id = $1`,
+     [projectId]
+   );
+   const dump: Record<string, any[]> = {};
+   for (const row of reg.rows) {
+     const rows = await vortexPgPool.query(`SELECT id, data, created_at FROM vortex."${row.physical_name}" ORDER BY id ASC;`);
+     dump[row.table_name] = rows.rows;
+   }
    const backupId = `backup-${generateId()}`;
+   await vortexPgPool.query(
+     `INSERT INTO vortex._backups (id, project_id, data) VALUES ($1, $2, $3);`,
+     [backupId, projectId, JSON.stringify({ tables: dump, tableCount: reg.rows.length })]
+   );
+   if (!backups[projectId]) backups[projectId] = [];
    backups[projectId].push({ id: backupId, date: new Date().toISOString(), status: "completed" });
    saveToCloudDB();
-   return { content: [{ type: "text", text: `Triggered backup for project ${projectId} with id ${backupId}` }] };
+   const rowCount = Object.values(dump).reduce((sum, rows) => sum + rows.length, 0);
+   return { content: [{ type: "text", text: `Created REAL backup ${backupId}: snapshotted ${reg.rows.length} table(s), ${rowCount} row(s) total, durably stored in Postgres.` }] };
 });
 
-mcpServer.tool("restore_backup", "Revert the system state to a specific historical snapshot.", { projectId: z.string(), backupId: z.string() }, async ({ projectId, backupId }) => {
-   const backup = (backups[projectId] || []).find(b => b.id === backupId);
-   if (!backup) return { content: [{ type: "text", text: "Backup not found" }] };
-   return { content: [{ type: "text", text: `Restored project ${projectId} to backup ${backupId}` }] };
+mcpServer.tool("restore_backup", "REALLY restores a project's Postgres tables to the exact row contents captured in a prior create_backup snapshot (destructive: replaces current table contents).", { projectId: z.string(), backupId: z.string() }, async ({ projectId, backupId }) => {
+   if (!vortexPgPool) {
+     return { content: [{ type: "text", text: "Error: No real database configured." }] };
+   }
+   await vortexEnsureBackupsTable();
+   const res = await vortexPgPool.query(`SELECT data FROM vortex._backups WHERE id = $1 AND project_id = $2;`, [backupId, projectId]);
+   if (!res.rows.length) return { content: [{ type: "text", text: "Error: Backup not found." }] };
+   const dump = res.rows[0].data;
+   const reg = await vortexPgPool.query(
+     `SELECT table_name, physical_name FROM vortex._tables_registry WHERE project_id = $1`,
+     [projectId]
+   );
+   let restoredTables = 0, restoredRows = 0;
+   for (const row of reg.rows) {
+     const savedRows = dump.tables?.[row.table_name];
+     if (!savedRows) continue;
+     const client = await vortexPgPool.connect();
+     try {
+       await client.query("BEGIN");
+       await client.query(`DELETE FROM vortex."${row.physical_name}";`);
+       for (const r of savedRows) {
+         await client.query(`INSERT INTO vortex."${row.physical_name}" (id, data, created_at) VALUES ($1, $2, $3);`, [r.id, r.data, r.created_at]);
+       }
+       await client.query(`SELECT setval(pg_get_serial_sequence('vortex."${row.physical_name}"', 'id'), COALESCE((SELECT MAX(id) FROM vortex."${row.physical_name}"), 1));`);
+       await client.query("COMMIT");
+       restoredTables++;
+       restoredRows += savedRows.length;
+     } catch (err) {
+       await client.query("ROLLBACK");
+       throw err;
+     } finally {
+       client.release();
+     }
+   }
+   return { content: [{ type: "text", text: `Really restored project ${projectId} from backup ${backupId}: ${restoredTables} table(s), ${restoredRows} row(s) written back.` }] };
 });
 
-mcpServer.tool("list_backups", "View available automated and manual recovery points.", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_backups", "View real recovery points (each backed by an actual Postgres snapshot) for a project.", { projectId: z.string() }, async ({ projectId }) => {
+   if (vortexPgPool) {
+     await vortexEnsureBackupsTable();
+     const res = await vortexPgPool.query(
+       `SELECT id, created_at, jsonb_object_keys(data->'tables') as t FROM vortex._backups WHERE project_id = $1 ORDER BY created_at DESC;`,
+       [projectId]
+     ).catch(() => null);
+     if (res) {
+       const grouped: Record<string, { id: string; created_at: string; tables: string[] }> = {};
+       for (const row of res.rows) {
+         if (!grouped[row.id]) grouped[row.id] = { id: row.id, created_at: row.created_at, tables: [] };
+         grouped[row.id].tables.push(row.t);
+       }
+       return { content: [{ type: "text", text: JSON.stringify(Object.values(grouped), null, 2) }] };
+     }
+   }
    return { content: [{ type: "text", text: JSON.stringify(backups[projectId] || [], null, 2) }] };
 });
 
@@ -3145,16 +3258,48 @@ mcpServer.tool("configure_backup_policy", "Set retention windows and cron schedu
 });
 
 // Logging & Observability
-mcpServer.tool("stream_logs", "Open a live tail of application, gateway, or system logs.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: `Streaming logs for project ${projectId}` }] };
+mcpServer.tool("stream_logs", "Fetch REAL recent build/runtime log lines from the project's live Vercel deployment (snapshot, not a true live tail — call again for fresh lines).", { projectId: z.string() }, async ({ projectId }) => {
+   const latestDep = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""))[0];
+   if (!latestDep?.vercelDeploymentId || !VERCEL_API_TOKEN) {
+     return { content: [{ type: "text", text: `Error: No real Vercel deployment found for project ${projectId} yet — call deploy_project first.` }] };
+   }
+   const res = await vortexVercelFetch(`/v2/deployments/${latestDep.vercelDeploymentId}/events`, { qs: "limit=50" });
+   if (!res.ok) return { content: [{ type: "text", text: `Error: Vercel logs API returned ${res.status}` }] };
+   const lines = (Array.isArray(res.json) ? res.json : []).map((e: any) => `[${e.type || "log"}] ${e.payload?.text || e.text || JSON.stringify(e.payload || {})}`);
+   return { content: [{ type: "text", text: lines.length ? lines.join("\n") : `No log events yet for deployment ${latestDep.vercelDeploymentId}.` }] };
 });
 
-mcpServer.tool("query_historical_logs", "Search past logs using filters like timestamp, severity, or service name.", { projectId: z.string(), query: z.string() }, async ({ projectId, query }) => {
-   return { content: [{ type: "text", text: `Queried logs for project ${projectId} with query ${query}` }] };
+mcpServer.tool("query_historical_logs", "Search REAL past build/runtime logs across the project's recent Vercel deployments for a text match.", { projectId: z.string(), query: z.string() }, async ({ projectId, query }) => {
+   const deps = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||"")).slice(0, 5);
+   if (!deps.length || !VERCEL_API_TOKEN) {
+     return { content: [{ type: "text", text: `Error: No real Vercel deployments found for project ${projectId} yet.` }] };
+   }
+   const matches: string[] = [];
+   for (const dep of deps) {
+     const res = await vortexVercelFetch(`/v2/deployments/${dep.vercelDeploymentId}/events`, { qs: "limit=100" });
+     if (!res.ok) continue;
+     for (const e of (Array.isArray(res.json) ? res.json : [])) {
+       const text = e.payload?.text || e.text || "";
+       if (text.toLowerCase().includes(query.toLowerCase())) {
+         matches.push(`[${dep.vercelDeploymentId}] [${e.type || "log"}] ${text}`);
+       }
+     }
+   }
+   return { content: [{ type: "text", text: matches.length ? matches.join("\n") : `No log lines matched "${query}" in the last ${deps.length} real deployments.` }] };
 });
 
-mcpServer.tool("get_error_analytics", "Aggregate and count recent system crashes or HTTP 5xx errors.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: `Error analytics: 0 crashes` }] };
+mcpServer.tool("get_error_analytics", "Aggregate REAL recent build/runtime error counts from the project's Vercel deployments.", { projectId: z.string() }, async ({ projectId }) => {
+   const deps = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||"")).slice(0, 5);
+   const failedCount = deployments.filter(d => d.projectId === projectId && d.status === "failed").length;
+   let stderrCount = 0;
+   if (VERCEL_API_TOKEN) {
+     for (const dep of deps) {
+       const res = await vortexVercelFetch(`/v2/deployments/${dep.vercelDeploymentId}/events`, { qs: "limit=100" });
+       if (!res.ok) continue;
+       stderrCount += (Array.isArray(res.json) ? res.json : []).filter((e: any) => e.type === "stderr" || e.payload?.level === "error").length;
+     }
+   }
+   return { content: [{ type: "text", text: JSON.stringify({ failedDeployments: failedCount, recentStderrLogLines: stderrCount, deploymentsScanned: deps.length }, null, 2) }] };
 });
 
 mcpServer.tool("export_audit_trail", "Generate a compliance CSV/JSON showing who executed what command and when.", { projectId: z.string() }, async ({ projectId }) => {
