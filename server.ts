@@ -3217,7 +3217,21 @@ const mcpRateLimitMiddleware = (req: express.Request, res: express.Response, nex
 };
 
 const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-   // Always allow access without any credentials/authentication
+   // Enforce the documented MCP bearer token (VRX_MCP_AUTH_TOKEN, falling back to the
+   // shared VORTEX_LIVE_API_KEY default) via Authorization header, x-api-key/api-key
+   // header, or ?key= query param — matches the auth contract documented in README.md.
+   const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || "vrx_agent_sk_live_999";
+   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
+
+   const isValid = !!authHeader && String(authHeader).includes(configuredKey);
+
+   if (!isValid) {
+     return res.status(401).json({
+       error: "Unauthorized",
+       message: "Missing or invalid MCP auth token. Provide it via 'Authorization: Bearer <token>', 'x-api-key: <token>' header, or '?key=<token>' query param."
+     });
+   }
+
    next();
 };
 
