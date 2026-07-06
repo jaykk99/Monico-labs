@@ -38,6 +38,45 @@ if (firestoreCredentialsPresent) {
 } else {
   console.log("[vortex-db] No Firestore credentials — using local file storage (vortex_local_db.json).");
 }
+
+// ─── Real Postgres backend for the database MCP tools (list/create tables, ────
+// insert records, run SQL) — replaces the old in-memory/local-JSON simulation.
+// Set VORTEX_DATABASE_URL to a real Postgres connection string to activate.
+// All tables live in a dedicated "vortex" schema, namespaced per vortex projectId
+// so multiple projects can share one Postgres instance safely.
+import { Pool as PgPool } from "pg";
+
+const vortexPgPool: PgPool | null = process.env.VORTEX_DATABASE_URL
+  ? new PgPool({ connectionString: process.env.VORTEX_DATABASE_URL, max: 5, ssl: { rejectUnauthorized: false } })
+  : null;
+
+if (vortexPgPool) {
+  console.log("[vortex-db] VORTEX_DATABASE_URL detected — real Postgres database backend enabled for MCP database tools.");
+} else {
+  console.warn("[vortex-db] VORTEX_DATABASE_URL not set — database MCP tools will report an error instead of simulating data.");
+}
+
+function vortexSanitizeIdent(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^([0-9])/, "_$1").slice(0, 60);
+}
+
+function vortexPhysicalTableName(projectId: string, tableName: string): string {
+  return `t_${vortexSanitizeIdent(projectId)}_${vortexSanitizeIdent(tableName)}`;
+}
+
+async function vortexEnsureRegistry(): Promise<void> {
+  if (!vortexPgPool) return;
+  await vortexPgPool.query(`
+    CREATE SCHEMA IF NOT EXISTS vortex;
+    CREATE TABLE IF NOT EXISTS vortex._tables_registry (
+      project_id text NOT NULL,
+      table_name text NOT NULL,
+      physical_name text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (project_id, table_name)
+    );
+  `);
+}
 const firestoreEnabled = () => db !== null;
 
 import localtunnel from "localtunnel";
@@ -2346,70 +2385,39 @@ mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
    };
 });
 
-mcpServer.tool("query_database", "Queries the Vortex local file database. Optionally delegates to Supabase if SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set.", {
+mcpServer.tool("query_database", "Runs a real SQL query against the project's Postgres tables (schema: vortex). Reference tables by the logical name you used in create_database_table — it's resolved to the real physical table automatically for simple single-table queries; for custom SQL, query vortex.\"t_<projectId>_<tableName>\" directly.", {
   projectId: z.string(),
   sql: z.string()
 }, async ({ projectId, sql }) => {
-  // ── Option A: Supabase (if configured via env vars) ─────────────────────────
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (supabaseUrl && supabaseKey) {
-    try {
-      // Requires a stored function: create function execute_sql(sql_text text) …
-      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabaseKey}`,
-          "apikey": supabaseKey,
-        },
-        body: JSON.stringify({ sql_text: sql }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        return { content: [{ type: "text", text: JSON.stringify({ result: data, source: "supabase" }, null, 2) }] };
-      }
-    } catch { /* fall through to local DB */ }
+  if (!vortexPgPool) {
+    return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed queries." }] };
+  }
+  await vortexEnsureRegistry();
+
+  // Resolve any bare logical table names in the SQL to their real physical vortex.<...> tables,
+  // so agents can keep writing natural SQL like "SELECT * FROM users" without knowing the
+  // real namespaced physical name.
+  const reg = await vortexPgPool.query(
+    `SELECT table_name, physical_name FROM vortex._tables_registry WHERE project_id = $1`,
+    [projectId]
+  );
+  let resolvedSql = sql;
+  for (const row of reg.rows) {
+    const pattern = new RegExp(`\\b${row.table_name}\\b`, "gi");
+    resolvedSql = resolvedSql.replace(pattern, `vortex."${row.physical_name}"`);
   }
 
-  // ── Option B: Local file-based DB (vortex_local_db.json) ────────────────────
-  const { readFileSync } = await import("fs");
-  const { join } = await import("path");
-  let localDb: Record<string, unknown> = {};
   try {
-    localDb = JSON.parse(readFileSync(join(process.cwd(), "vortex_local_db.json"), "utf8"));
-  } catch { /* use empty object */ }
-
-  // Map common SQL table names → local DB keys
-  const tableMap: Record<string, string> = {
-    users: "authUsers", auth_users: "authUsers",
-    projects: "projects", deployments: "deployments",
-    domains: "domains", env_vars: "envVars", envvars: "envVars",
-    api_keys: "apiKeys", apikeys: "apiKeys",
-    workspaces: "workspaces", functions: "serverlessFunctions",
-    serverless_functions: "serverlessFunctions",
-    logs: "executionLogs", execution_logs: "executionLogs",
-    backups: "backups", storage: "storageBuckets",
-  };
-
-  const lowerSql = sql.toLowerCase().trim();
-  const tableMatch = lowerSql.match(/(?:from|into|update)\s+(\w+)/i);
-  const tableName = tableMatch?.[1]?.toLowerCase() ?? "";
-  const dbKey = tableMap[tableName] ?? tableName;
-  const tableData = localDb[dbKey];
-
-  let result: unknown[];
-  if (lowerSql.startsWith("select") && tableData !== undefined) {
-    result = Array.isArray(tableData)
-      ? tableData
-      : Object.entries(tableData as object).map(([k, v]) => ({ id: k, ...(typeof v === "object" && v ? v as object : { value: v }) }));
-  } else if (!tableData && tableName) {
-    result = [{ error: `Table '${tableName}' not found in local DB`, availableTables: Object.keys(localDb) }];
-  } else {
-    result = [{ status: "executed", table: dbKey || "unknown", note: "Write operations persist via saveToCloudDB()" }];
+    const client = await vortexPgPool.connect();
+    try {
+      const result = await client.query(resolvedSql);
+      return { content: [{ type: "text", text: JSON.stringify({ result: result.rows, rowCount: result.rowCount, source: "postgres" }, null, 2) }] };
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return { content: [{ type: "text", text: `SQL error: ${err.message}` }] };
   }
-
-  return { content: [{ type: "text", text: JSON.stringify({ result, source: "local_db" }, null, 2) }] };
 });
 
 mcpServer.tool("delete_project", "Deletes a project.", {
@@ -2661,23 +2669,65 @@ mcpServer.tool("delete_api_key", "Deletes an API Key.", { projectId: z.string(),
    return { content: [{ type: "text", text: `Deleted API key ${keyId}` }] };
 });
 
-mcpServer.tool("list_database_tables", "Lists database tables.", { projectId: z.string() }, async ({ projectId }) => {
-   return { content: [{ type: "text", text: JSON.stringify(databaseTables[projectId] || [], null, 2) }] };
+mcpServer.tool("list_database_tables", "Lists real database tables backed by Postgres for this project.", { projectId: z.string() }, async ({ projectId }) => {
+   if (!vortexPgPool) {
+     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+   }
+   await vortexEnsureRegistry();
+   const res = await vortexPgPool.query(
+     `SELECT table_name, physical_name, created_at FROM vortex._tables_registry WHERE project_id = $1 ORDER BY created_at ASC`,
+     [projectId]
+   );
+   return { content: [{ type: "text", text: JSON.stringify(res.rows, null, 2) }] };
 });
 
-mcpServer.tool("create_database_table", "Creates a database table.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
-   if (!databaseTables[projectId]) databaseTables[projectId] = [];
-   databaseTables[projectId].push({ id: `tbl-${generateId()}`, name, columns: [], rows: [] });
-   logMcpAction(projectId, `Created database table: ${name}`);
-   return { content: [{ type: "text", text: `Created database table ${name}` }] };
+mcpServer.tool("create_database_table", "Creates a real Postgres table for this project.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+   if (!vortexPgPool) {
+     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+   }
+   await vortexEnsureRegistry();
+   const physical = vortexPhysicalTableName(projectId, name);
+   await vortexPgPool.query(`
+     CREATE TABLE IF NOT EXISTS vortex."${physical}" (
+       id SERIAL PRIMARY KEY,
+       data JSONB NOT NULL DEFAULT '{}'::jsonb,
+       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+     );
+   `);
+   await vortexPgPool.query(
+     `INSERT INTO vortex._tables_registry (project_id, table_name, physical_name) VALUES ($1, $2, $3)
+      ON CONFLICT (project_id, table_name) DO NOTHING`,
+     [projectId, name, physical]
+   );
+   logMcpAction(projectId, `Created real Postgres table: ${name}`);
+   return { content: [{ type: "text", text: `Created real database table '${name}' (Postgres table vortex."${physical}")` }] };
 });
 
-mcpServer.tool("insert_database_record", "Inserts a database record.", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
-   const table = (databaseTables[projectId] || []).find(t => t.name === tableName);
-   if (!table) return { content: [{ type: "text", text: "Table not found" }] };
-   table.rows.push({ id: `row-${generateId()}`, ...JSON.parse(data) });
-   logMcpAction(projectId, `Inserted record into database table: ${tableName}`);
-   return { content: [{ type: "text", text: `Inserted record into ${tableName}` }] };
+mcpServer.tool("insert_database_record", "Inserts a record into a real Postgres table.", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
+   if (!vortexPgPool) {
+     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+   }
+   await vortexEnsureRegistry();
+   const reg = await vortexPgPool.query(
+     `SELECT physical_name FROM vortex._tables_registry WHERE project_id = $1 AND table_name = $2`,
+     [projectId, tableName]
+   );
+   if (reg.rowCount === 0) {
+     return { content: [{ type: "text", text: `Table '${tableName}' not found for project ${projectId}. Call create_database_table first.` }] };
+   }
+   const physical = reg.rows[0].physical_name;
+   let parsed: unknown;
+   try {
+     parsed = JSON.parse(data);
+   } catch {
+     return { content: [{ type: "text", text: "Error: 'data' must be a valid JSON string." }] };
+   }
+   const res = await vortexPgPool.query(
+     `INSERT INTO vortex."${physical}" (data) VALUES ($1::jsonb) RETURNING id, created_at`,
+     [JSON.stringify(parsed)]
+   );
+   logMcpAction(projectId, `Inserted record into real Postgres table: ${tableName}`);
+   return { content: [{ type: "text", text: `Inserted record into ${tableName} (id: ${res.rows[0].id})` }] };
 });
 
 mcpServer.tool("list_shield_incidents", "Lists WAF Shield incidents.", { projectId: z.string() }, async ({ projectId }) => {
