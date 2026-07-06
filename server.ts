@@ -114,7 +114,10 @@ async function vortexVercelFetch(path: string, opts: { method?: string; body?: u
 }
 
 function vortexVercelProjectName(prj: { id: string; name: string }): string {
-  return `vortex-${vortexSanitizeIdent(prj.name)}-${prj.id.replace(/[^a-z0-9]/gi, "").slice(-8)}`.slice(0, 52);
+  // Vercel project names (and the *.vercel.app subdomain derived from them) only allow
+  // lowercase letters, numbers, and hyphens — no underscores, unlike Postgres identifiers.
+  const slug = prj.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `vortex-${slug}-${prj.id.replace(/[^a-z0-9]/gi, "").slice(-8)}`.slice(0, 52).replace(/-+$/, "");
 }
 
 // Creates the real Vercel project on first deploy (idempotent), disables Vercel's
