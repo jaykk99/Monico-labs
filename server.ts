@@ -78,6 +78,52 @@ async function vortexEnsureRegistry(): Promise<void> {
   `);
 }
 
+// ─── Durable app-state persistence in real Postgres ────────────────────────────
+// Render's free/starter web service plan has NO persistent disk — the local JSON
+// file (vortex_local_db.json) is wiped on every redeploy/restart. That means every
+// "real" thing we wire up (Vercel project IDs, deployment records, api keys,
+// domains, storage buckets...) would silently vanish on the next deploy unless we
+// also persist it somewhere durable. Mirror the full state blob into the same
+// real Postgres database already used for Phase 1 (vortex schema), as the
+// authoritative durable copy — the local file remains a fast-path cache only.
+async function vortexEnsureAppStateTable(): Promise<void> {
+  if (!vortexPgPool) return;
+  await vortexPgPool.query(`
+    CREATE SCHEMA IF NOT EXISTS vortex;
+    CREATE TABLE IF NOT EXISTS vortex._app_state (
+      id text PRIMARY KEY DEFAULT 'singleton',
+      data jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function vortexSaveAppState(data: unknown): Promise<void> {
+  if (!vortexPgPool) return;
+  try {
+    await vortexEnsureAppStateTable();
+    await vortexPgPool.query(
+      `INSERT INTO vortex._app_state (id, data, updated_at) VALUES ('singleton', $1, now())
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now();`,
+      [JSON.stringify(data)]
+    );
+  } catch (err) {
+    console.error("[vortex-db] Postgres app-state write error (local file copy is safe):", (err as Error)?.message || err);
+  }
+}
+
+async function vortexLoadAppState(): Promise<any | null> {
+  if (!vortexPgPool) return null;
+  try {
+    await vortexEnsureAppStateTable();
+    const res = await vortexPgPool.query(`SELECT data FROM vortex._app_state WHERE id = 'singleton';`);
+    if (res.rows.length) return res.rows[0].data;
+  } catch (err) {
+    console.error("[vortex-db] Postgres app-state read error (using local file copy):", (err as Error)?.message || err);
+  }
+  return null;
+}
+
 // ─── Real Vercel deployments for the deployment MCP tools ──────────────────────
 // Set VERCEL_API_TOKEN (+ optionally VERCEL_TEAM_ID) to activate. deploy_project /
 // trigger_deployment now create ACTUAL Vercel projects + deployments with real,
@@ -549,6 +595,11 @@ async function saveToCloudDB() {
       console.error("[vortex-db] Firestore write error (local copy is safe):", (err as Error)?.message || err);
     }
   }
+
+  // 3) Mirror to real Postgres (vortex._app_state) — this is the DURABLE copy that
+  //    survives Render redeploys, since the local file/disk does not persist on
+  //    the current (no persistent-disk) plan.
+  await vortexSaveAppState(dataToSave);
 }
 
 async function loadFromCloudDB() {
@@ -578,6 +629,21 @@ async function loadFromCloudDB() {
       }
     } catch (err) {
       console.error("[vortex-db] Firestore read error (using local copy):", (err as Error)?.message || err);
+    }
+  }
+
+  // 3) Real Postgres (vortex._app_state) is the DURABLE source of truth — it survives
+  //    redeploys, unlike the local file/disk on this Render plan. Prefer it over the
+  //    local file whenever it has data, so state is never silently lost on a deploy.
+  if (vortexPgPool) {
+    try {
+      const pgState = await vortexLoadAppState();
+      if (pgState) {
+        loaded = pgState;
+        console.log("[vortex-db] State restored from durable Postgres app-state table.");
+      }
+    } catch (err) {
+      console.error("[vortex-db] Postgres app-state read error (using local/Firestore copy):", (err as Error)?.message || err);
     }
   }
 
@@ -3112,15 +3178,45 @@ mcpServer.tool("promote_build", "Seamlessly push configurations and code from st
    return { content: [{ type: "text", text: `Promoted build ${buildId} to production in project ${projectId}` }] };
 });
 
-mcpServer.tool("set_env_variable", "Inject runtime secrets or configuration keys into the system.", { projectId: z.string(), key: z.string(), value: z.string() }, async ({ projectId, key, value }) => {
+mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the project's live Vercel deployment (applies on next deploy).", { projectId: z.string(), key: z.string(), value: z.string() }, async ({ projectId, key, value }) => {
    if (!envVars[projectId]) envVars[projectId] = [];
-   envVars[projectId].push({ id: `env-${generateId()}`, key, value });
+   const existing = envVars[projectId].find(e => e.key === key);
+   if (existing) existing.value = value; else envVars[projectId].push({ id: `env-${generateId()}`, key, value });
+
+   const prj = projects.find(p => p.id === projectId);
+   if (prj && VERCEL_API_TOKEN) {
+     const vprj = await vortexEnsureVercelProject(prj);
+     if (vprj) {
+       // Vercel's env API upserts by (key, target) — remove any existing var with this key first to avoid dupes.
+       const existingVars = await vortexVercelFetch(`/v10/projects/${vprj.id}/env`);
+       const dupe = existingVars.ok ? (existingVars.json?.envs || []).find((e: any) => e.key === key) : null;
+       if (dupe) await vortexVercelFetch(`/v9/projects/${vprj.id}/env/${dupe.id}`, { method: "DELETE" });
+       const res = await vortexVercelFetch(`/v10/projects/${vprj.id}/env`, {
+         method: "POST",
+         body: { key, value, type: "encrypted", target: ["production", "preview", "development"] }
+       });
+       if (!res.ok) {
+         return { content: [{ type: "text", text: `Error: Saved locally but failed to set real Vercel env var — ${res.json?.error?.message || res.status}` }] };
+       }
+       saveToCloudDB();
+       logMcpAction(projectId, `Set real Vercel environment variable: ${key} (redeploy to apply)`);
+       return { content: [{ type: "text", text: `Set REAL environment variable ${key} on the live Vercel project. Redeploy (trigger_deployment) for it to take effect in the running app.` }] };
+     }
+   }
+   saveToCloudDB();
    logMcpAction(projectId, `Configured runtime environment variable: ${key}`);
-   return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId}` }] };
+   return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId} (no live Vercel project yet — will attach once the project is deployed).` }] };
 });
 
-mcpServer.tool("list_env_variables", "View active environment variables (with secrets masked).", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_env_variables", "View active environment variables (with secrets masked) — reconciled against the real live Vercel project when one exists.", { projectId: z.string() }, async ({ projectId }) => {
    const envs = envVars[projectId] || [];
+   const prj = projects.find(p => p.id === projectId);
+   if (prj?.vercelProjectId && VERCEL_API_TOKEN) {
+     const res = await vortexVercelFetch(`/v10/projects/${prj.vercelProjectId}/env`);
+     const liveKeys = new Set((res.ok ? res.json?.envs || [] : []).map((e: any) => e.key));
+     const merged = envs.map(e => ({ key: e.key, value: "****", liveOnVercel: liveKeys.has(e.key) }));
+     return { content: [{ type: "text", text: JSON.stringify(merged, null, 2) }] };
+   }
    return { content: [{ type: "text", text: JSON.stringify(envs.map(e => ({ ...e, value: "****" })), null, 2) }] };
 });
 
@@ -3338,7 +3434,20 @@ mcpServer.tool("terminate_environment", "Cleanly destroy temporary environments 
     return { content: [{ type: "text", text: `Terminated environment ${environment} for project ${projectId}.` }] };
 });
 
-mcpServer.tool("list_ssl_certificates", "Fetch expiration and status of TLS certs for your custom API gateways.", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_ssl_certificates", "Fetch REAL domain verification/TLS status from Vercel for a project's attached domains (Vercel auto-issues and renews Let's Encrypt certs for any verified domain).", { projectId: z.string() }, async ({ projectId }) => {
+    const prj = projects.find(p => p.id === projectId);
+    if (prj?.vercelProjectId && VERCEL_API_TOKEN) {
+      const res = await vortexVercelFetch(`/v9/projects/${prj.vercelProjectId}/domains`);
+      if (res.ok) {
+        const certs = (res.json?.domains || []).map((d: any) => ({
+          domain: d.name,
+          verified: d.verified,
+          sslStatus: d.verified ? "active (auto-managed by Vercel)" : "pending domain verification",
+          createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : null,
+        }));
+        return { content: [{ type: "text", text: JSON.stringify(certs, null, 2) }] };
+      }
+    }
     return { content: [{ type: "text", text: JSON.stringify(sslCertificates[projectId] || [], null, 2) }] };
 });
 
@@ -3365,8 +3474,14 @@ mcpServer.tool("tail_crash_dump", "Download memory dumps or core traces when ser
     return { content: [{ type: "text", text: `Crash dump for deployment ${deploymentId} in project ${projectId}.` }] };
 });
 
-mcpServer.tool("get_live_deployment_url", "Return the live, active URL directly associated with a specific deployed project or branch.", { projectId: z.string(), branch: z.string() }, async ({ projectId, branch }) => {
-    return { content: [{ type: "text", text: `https://${projectId}-${branch}.vortex-edge.app` }] };
+mcpServer.tool("get_live_deployment_url", "Return the REAL live, active URL for a deployed project (its current production Vercel deployment).", { projectId: z.string(), branch: z.string().optional() }, async ({ projectId, branch }) => {
+    const prj = projects.find(p => p.id === projectId);
+    if (!prj) return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
+    const activeDep = deployments.find(d => d.id === prj.activeDeploymentId) || deployments.find(d => d.projectId === projectId && d.status === "ready");
+    if (activeDep?.vercelUrl) {
+      return { content: [{ type: "text", text: activeDep.vercelUrl }] };
+    }
+    return { content: [{ type: "text", text: `Error: No real live deployment yet for project ${projectId} — call deploy_project first.` }] };
 });
 
 mcpServer.tool("sync_jira_issue", "Fetch or update external Agile boards when deployments successfully transition to production.", { issueKey: z.string() }, async ({ issueKey }) => {
