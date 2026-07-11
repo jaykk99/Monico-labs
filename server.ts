@@ -3683,7 +3683,7 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    // Enforce the documented MCP bearer token (VRX_MCP_AUTH_TOKEN, falling back to the
    // shared VORTEX_LIVE_API_KEY default) via Authorization header, x-api-key/api-key
    // header, or ?key= query param — matches the auth contract documented in README.md.
-   const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || "vrx_agent_sk_live_999";
+   const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || "jayisthegoat";
    const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
 
    const isValid = !!authHeader && String(authHeader).includes(configuredKey);
