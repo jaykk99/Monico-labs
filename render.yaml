@@ -1,26 +1,33 @@
-# Render Blueprint for Monico Labs (Vortex Cloud Platform)
-# One-click persistent deploy — NOT Vercel. Render injects PORT automatically.
+# Render Blueprint for Monico Labs
+# Headless Chrome (puppeteer) requires Docker runtime — node runtime doesn't include Chrome.
 # Deploy: https://dashboard.render.com → New → Blueprint → connect jaykk99/Monico-labs
 services:
   - type: web
     name: monico-labs
-    runtime: node
+    runtime: docker
     plan: free
     branch: main
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
     healthCheckPath: /
     autoDeploy: true
     envVars:
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
       - key: NODE_VERSION
         value: "20"
-      # Render injects PORT automatically — do not set it.
-      # Optional: set GEMINI_API_KEY for AI features.
+      # Required for AI browser automation and MCP agent
       - key: GEMINI_API_KEY
         sync: false
-      # The agent live-deploy key (matches README default).
+      # Agent live-deploy key
       - key: VORTEX_LIVE_API_KEY
-        value: vrx_agent_sk_live_999
-      # Tunnel off on Render — the *.onrender.com URL is the real public URL.
-      - key: ENABLE_TUNNEL
-        value: "false"
+        value: vrx_agent_sk_live_
+      # Optional: Postgres for real database tools
+      - key: VORTEX_DATABASE_URL
+        sync: false
+      # Optional: Vercel API token for real deployments
+      - key: VERCEL_API_TOKEN
+        sync: false
+      # Optional: Composio for platform integrations
+      - key: COMPOSIO_API_KEY
+        sync: false
