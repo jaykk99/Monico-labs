@@ -3956,16 +3956,33 @@ mcpServer.tool(
 
     try {
       const puppeteer = await import("puppeteer");
+
+      // Auto-detect Chrome executable across environments
+      const chromePaths = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/snap/bin/chromium",
+        "/run/current-system/sw/bin/chromium",   // Nixpacks/Railway
+        "/nix/var/nix/profiles/default/bin/chromium",
+      ].filter(Boolean);
+      const executablePath = chromePaths.find(p => { try { return fs.existsSync(p!); } catch { return false; } }) || undefined;
+
       browser = await (puppeteer.default.launch || puppeteer.launch)({
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        executablePath,
         args: [
           "--no-sandbox", "--disable-setuid-sandbox",
           "--disable-dev-shm-usage", "--disable-gpu",
           "--disable-blink-features=AutomationControlled",
+          "--disable-extensions",
+          "--single-process",           // needed on some cloud environments
           "--window-size=1280,800"
         ]
       });
+      logs.push(`[browser] Chrome: ${executablePath || "bundled"}`);
 
       const page = await browser.newPage();
 
