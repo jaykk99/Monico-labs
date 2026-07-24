@@ -180,7 +180,7 @@ export default function App() {
   const [isCopiedConfig, setIsCopiedConfig] = useState(false);
   const [mcpTestLogs, setMcpTestLogs] = useState<string[]>([]);
   const [isTestingMcp, setIsTestingMcp] = useState(false);
-const [mcpAgentPlatform, setMcpAgentPlatform] = useState<string>("gemini-2.5-flash");
+  const [mcpAgentPlatform, setMcpAgentPlatform] = useState<string>("gemini-2.5-flash");
   const [mcpAgentPrompt, setMcpAgentPrompt] = useState("Query active database tables and alert slack of table changes");
   const [mcpTestRunStatus, setMcpTestRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [mcpAgentGuideTab, setMcpAgentGuideTab] = useState<"claude" | "cursor" | "custom_sdk" | "cloud_saas">("claude");
@@ -4922,18 +4922,21 @@ console.log(result.content[0].text);`);
                     {/* Model & Platform Selector */}
                     <div className="space-y-3 font-mono text-xs">
                       <div className="space-y-1.5">
-                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Gemini Model</label>
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Model</label>
                         <select
                           value={mcpAgentPlatform}
                           onChange={(e) => setMcpAgentPlatform(e.target.value as any)}
                           className="w-full bg-neutral-950 border border-neutral-800 rounded h-9 px-2.5 text-neutral-200 focus:outline-none focus:border-neutral-700 font-mono"
                         >
                           <option value="gemini-2.5-pro">Gemini 2.5 Pro — best reasoning</option>
-                          <option value="gemini-2.5-flash">Gemini 2.5 Flash — fast + smart</option>
+                          <option value="gemini-2.5-flash">Gemini 2.5 Flash — fast + smart (default)</option>
                           <option value="gemini-2.0-flash">Gemini 2.0 Flash — lightweight</option>
                           <option value="gemini-2.0-flash-thinking">Gemini 2.0 Flash Thinking — deep reasoning</option>
                           <option value="gemini-1.5-pro">Gemini 1.5 Pro — reliable</option>
                           <option value="gemini-1.5-flash">Gemini 1.5 Flash — legacy fast</option>
+                          <option disabled>── GLM (needs GLM_API_KEY) ──</option>
+                          <option value="glm-5.2">GLM-5.2 — Z.ai API · 1M ctx · tool calling</option>
+                          <option value="glm-5.2-uncensored">GLM-5.2 Uncensored — local llama-server (GLM_UNCENSORED_URL)</option>
                         </select>
                       </div>
                     </div>
@@ -5089,7 +5092,7 @@ console.log(result.content[0].text);`);
                           setAgentRunStatus("running");
                           setAgentLogs(["[SYSTEM] Connecting to Vortex Orchestrator Engine..."]);
 
-                          const eventSource = new EventSource(`/api/mcp/run?prompt=${encodeURIComponent(agentPromptText)}&model=${mcpAgentPlatform}`);
+                          const eventSource = new EventSource(`/api/mcp/run?prompt=${encodeURIComponent(agentPromptText)}&model=${encodeURIComponent(mcpAgentPlatform)}`);
 
                           eventSource.onmessage = (event) => {
                             try {
