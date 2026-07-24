@@ -4677,18 +4677,25 @@ app.get("/api/mcp/run", async (req, res) => {
   const apiKey = req.query.apiKey as string;
   const endpoint = req.query.endpoint as string;
   const agentLabel = req.query.agentLabel as string;
-  const requestedModel = (req.query.model || req.query.agentPlatform) as string;
+  const requestedModel = ((req.query.model || req.query.agentPlatform) as string) || "";
 
-  // Map requested model to real Gemini model ID
-  const MODEL_ALIASES: Record<string, string> = {
-    "gemini-2.5-pro":              "gemini-2.5-pro",
-    "gemini-2.5-flash":            "gemini-2.5-flash",
-    "gemini-2.0-flash":            "gemini-2.0-flash",
-    "gemini-2.0-flash-thinking":   "gemini-2.0-flash-thinking-exp-01-21",
-    "gemini-1.5-pro":              "gemini-1.5-pro",
-    "gemini-1.5-flash":            "gemini-1.5-flash",
+  const MODEL_MAP: Record<string, string> = {
+    "gemini-2.5-pro":            "gemini-2.5-pro",
+    "gemini-2.5-flash":          "gemini-2.5-flash",
+    "gemini-2.0-flash":          "gemini-2.0-flash",
+    "gemini-2.0-flash-thinking": "gemini-2.0-flash-thinking-exp-01-21",
+    "gemini-1.5-pro":            "gemini-1.5-pro",
+    "gemini-1.5-flash":          "gemini-1.5-flash",
+    "glm-5.2":                   "glm-5.2",
+    "glm-5.2-uncensored":        "glm-5.2",
   };
-  const agentModel = MODEL_ALIASES[requestedModel] || requestedModel || "gemini-2.5-flash";
+  const agentModel   = MODEL_MAP[requestedModel] || requestedModel || "gemini-2.5-flash";
+  const isGlmModel   = requestedModel.startsWith("glm-");
+  const isUncensored = requestedModel === "glm-5.2-uncensored";
+  const glmBaseUrl   = isUncensored
+    ? (process.env.GLM_UNCENSORED_URL || "http://localhost:8080/v1")
+    : "https://api.z.ai/api/paas/v4";
+  const glmApiKey    = process.env.GLM_API_KEY || "local";
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -4829,7 +4836,7 @@ app.get("/api/mcp/run", async (req, res) => {
      }
      
      sendLog(`[AGENT-SYSTEM] Spawning agent controller [${agentLabel}]...`);
-           sendLog(`[AGENT-MODEL] Using model: ${agentModel}`);
+     sendLog(`[AGENT-MODEL] Using model: ${isGlmModel ? (isUncensored ? "GLM-5.2 Uncensored (local)" : "GLM-5.2 (Z.ai)") : agentModel}`);
      
      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
      
@@ -4853,36 +4860,112 @@ User Request: ${prompt}` }] }
      let loopCount = 0;
      let completed = false;
 
-     while (loopCount < 12 && !completed) {
-       loopCount++;
-       sendLog(`[AGENT-SYSTEM] Thinking... (Turn ${loopCount}/12)`);
-       
-       try {
-         const response = await ai.models.generateContent({
-           model: agentModel,
-           contents: messages,
-           config: {
-             tools: [{ functionDeclarations: tools }]
+     // ── GLM-5.2 path (OpenAI-compatible: Z.ai API or local llama-server) ─────
+     if (isGlmModel) {
+       const oaiTools = tools.map((t: any) => ({
+         type: "function",
+         function: { name: t.name, description: t.description || "", parameters: t.parameters || {} }
+       }));
+
+       const oaiMessages: any[] = [{
+         role: "user",
+         content: `RULES: ONE tool per turn. State your reasoning before each call. Stop if you detect a loop.\n\nUser Request: ${prompt}`
+       }];
+
+       while (loopCount < 12 && !completed) {
+         loopCount++;
+         sendLog(`[AGENT-SYSTEM] GLM thinking... (Turn ${loopCount}/12)`);
+
+         try {
+           const glmRes = await fetch(`${glmBaseUrl}/chat/completions`, {
+             method: "POST",
+             headers: {
+               "Authorization": `Bearer ${glmApiKey}`,
+               "Content-Type": "application/json"
+             },
+             body: JSON.stringify({
+               model: agentModel,
+               messages: oaiMessages,
+               tools: oaiTools,
+               tool_choice: "auto",
+               max_tokens: 4096
+             })
+           });
+
+           if (!glmRes.ok) {
+             const err = await glmRes.text();
+             sendLog(`[GLM-ERROR] HTTP ${glmRes.status}: ${err.substring(0, 200)}`);
+             throw new Error(`GLM API error ${glmRes.status}`);
            }
-         });
 
-         const candidate = response.candidates?.[0];
-         const content = candidate?.content;
-         
-         if (content) {
-           messages.push(content);
+           const glmData = await glmRes.json() as any;
+           const choice  = glmData.choices?.[0];
+           const msg     = choice?.message;
+           if (!msg) { sendLog("[GLM-ERROR] Empty response"); break; }
+
+           oaiMessages.push(msg);
+
+           if (msg.tool_calls?.length > 0) {
+             const call = msg.tool_calls[0];
+             const fn   = call.function;
+             sendLog(`[AGENT-ROUTE] GLM selected tool '${fn.name}'`);
+
+             let args: any = {};
+             try { args = JSON.parse(fn.arguments || "{}"); } catch {}
+
+             let resultVal: any;
+             try {
+               const result = await mcpServer.callTool({ name: fn.name, arguments: args });
+               resultVal = result;
+               sendLog(`[MCP-EXEC-SUCCESS] ${fn.name} → ${JSON.stringify(result.content).substring(0, 150)}`);
+             } catch (execErr: any) {
+               resultVal = { error: execErr.message };
+               sendLog(`[MCP-EXEC-FAILED] ${fn.name}: ${execErr.message}`);
+             }
+
+             oaiMessages.push({
+               role: "tool",
+               tool_call_id: call.id,
+               content: typeof resultVal === "string" ? resultVal : JSON.stringify(resultVal)
+             });
+
+           } else if (msg.content) {
+             sendLog(`[AGENT-SUCCESS] GLM final reply: ${msg.content}`);
+             completed = true;
+           } else {
+             sendLog("[GLM-WARN] No tool call and no content — stopping");
+             completed = true;
+           }
+         } catch (glmErr: any) {
+           sendLog(`[AGENT-ERROR] GLM turn ${loopCount} failed: ${glmErr.message}`);
+           throw glmErr;
          }
+       }
 
-         const functionCalls = response.functionCalls;
-         if (functionCalls && functionCalls.length > 0) {
-           const functionResponseParts: any[] = [];
-           
-           const call = functionCalls[0];
-            if (functionCalls.length > 1) {
-              sendLog(`[AGENT-WARNING] Model attempted multiple calls (${functionCalls.length}). Enforcing ONE TOOL PER TURN protocol. Executing only '${call.name}'.`);
-            }
-            if (call) {
+     // ── Gemini path ────────────────────────────────────────────────────────────
+     } else {
+       while (loopCount < 12 && !completed) {
+         loopCount++;
+         sendLog(`[AGENT-SYSTEM] Thinking... (Turn ${loopCount}/12)`);
 
+         try {
+           const response = await ai.models.generateContent({
+             model: agentModel,
+             contents: messages,
+             config: { tools: [{ functionDeclarations: tools }] }
+           });
+
+           const candidate = response.candidates?.[0];
+           const content   = candidate?.content;
+           if (content) messages.push(content);
+
+           const functionCalls = response.functionCalls;
+           if (functionCalls && functionCalls.length > 0) {
+             const functionResponseParts: any[] = [];
+             const call = functionCalls[0];
+             if (functionCalls.length > 1) {
+               sendLog(`[AGENT-WARNING] Model attempted ${functionCalls.length} calls. Enforcing ONE TOOL PER TURN. Executing only '${call.name}'.`);
+             }
               sendLog(`[AGENT-ROUTE] LLM reasoning selected tool '${call.name}'`);
               
               // Revert sanitized name back to original tool name
@@ -4941,6 +5024,17 @@ User Request: ${prompt}` }] }
          throw geminiErr;
        }
      }
+
+         } else {
+           sendLog(`[AGENT-SUCCESS] Agent final reply: ${response.text}`);
+           completed = true;
+         }
+       } catch (geminiErr: any) {
+         sendLog(`[AGENT-ERROR] Turn ${loopCount} Gemini failed: ${geminiErr.message}`);
+         throw geminiErr;
+       }
+     }
+     } // end Gemini else block
 
      sendLog(`[AGENT-SUCCESS] Autonomous run finished. All achievable agent goals completed.`);
      sendStatus("success");
