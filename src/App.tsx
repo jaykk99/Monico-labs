@@ -180,7 +180,7 @@ export default function App() {
   const [isCopiedConfig, setIsCopiedConfig] = useState(false);
   const [mcpTestLogs, setMcpTestLogs] = useState<string[]>([]);
   const [isTestingMcp, setIsTestingMcp] = useState(false);
-  const [mcpAgentPlatform, setMcpAgentPlatform] = useState<"VortexAutonomousOS" | "VortexCoreLLM" | "VortexAnycastRouting">("VortexAutonomousOS");
+const [mcpAgentPlatform, setMcpAgentPlatform] = useState<string>("gemini-2.5-flash");
   const [mcpAgentPrompt, setMcpAgentPrompt] = useState("Query active database tables and alert slack of table changes");
   const [mcpTestRunStatus, setMcpTestRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [mcpAgentGuideTab, setMcpAgentGuideTab] = useState<"claude" | "cursor" | "custom_sdk" | "cloud_saas">("claude");
@@ -253,7 +253,7 @@ export default function App() {
   // Analytics Metrics endpoints state
   const [analyticsMetrics, setAnalyticsMetrics] = useState<any[]>([]);
   // Core Web Vitals are REAL user-timing metrics measured in the browser via
-  // the Performance API (see the observer effect below) — not fabricated and
+  // the Performance API (see the observer effect below) â not fabricated and
   // not sourced from the backend (a Node server cannot measure client paint/input).
   const [analyticsVitals, setAnalyticsVitals] = useState<any>({
     lcp: { value: 0, rating: "measuring" },
@@ -795,7 +795,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isTrafficSpikeActive]);
 
-  // Real Core Web Vitals — measured live in this browser via the Performance
+  // Real Core Web Vitals â measured live in this browser via the Performance
   // API. LCP (largest-contentful-paint), CLS (layout-shift), FID (first-input).
   // These are genuine user-timing metrics, not fabricated numbers.
   useEffect(() => {
@@ -1313,11 +1313,11 @@ export default function App() {
                   >
                     {projectsList.map((prj) => (
                       <option key={prj.id} value={prj.id}>
-                        📁 {prj.name}
+                        ð {prj.name}
                       </option>
                     ))}
                   </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500 text-xs">▼</div>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500 text-xs">â¼</div>
                 </div>
 
                 <button
@@ -1611,7 +1611,7 @@ export default function App() {
                                       rel="noreferrer"
                                       className="text-neutral-400 hover:text-white transition flex items-center gap-1 hover:underline text-[11px]"
                                     >
-                                      🔗 {dom}
+                                      ð {dom}
                                     </a>
                                   ))}
                                 </div>
@@ -2310,7 +2310,7 @@ export default function App() {
                             : "bg-neutral-950/80 hover:bg-rose-950/20 border border-neutral-800 text-rose-400 hover:text-rose-300"
                         }`}
                       >
-                        ⚡ INJECT LOAD TEST
+                        â¡ INJECT LOAD TEST
                       </button>
 
                       {shieldConfig.securityLevel === "under-attack" && (
@@ -2329,7 +2329,7 @@ export default function App() {
                     <div className="flex flex-col items-center text-center space-y-2">
                       <div className="relative">
                         <div className="h-14 w-14 rounded-full border border-neutral-800 bg-neutral-900 flex items-center justify-center text-xl shadow">
-                          👥
+                          ð¥
                         </div>
                         <span className="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-blue-500 border border-black animate-ping" />
                         <span className="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-blue-500 border border-black" />
@@ -2391,7 +2391,7 @@ export default function App() {
                     {/* Node 3: Target Server Origin */}
                     <div className="flex flex-col items-center text-center space-y-2">
                       <div className="h-14 w-14 rounded-full border border-neutral-850 bg-neutral-900 flex items-center justify-center text-xl shadow">
-                        🛡️
+                        ð¡ï¸
                       </div>
                       <div className="space-y-0.5">
                         <div className="text-xs font-semibold text-neutral-300">Origin Container</div>
@@ -2434,16 +2434,16 @@ export default function App() {
 
                       <div className="p-3 bg-neutral-950 rounded-lg text-[10px] text-neutral-400 space-y-1">
                         {shieldConfig.sslMode === "off" && (
-                          <span>⚠️ Danger: Visitor requests bypass SSL standard limits. Passwords & cookies travel as cleartext.</span>
+                          <span>â ï¸ Danger: Visitor requests bypass SSL standard limits. Passwords & cookies travel as cleartext.</span>
                         )}
                         {shieldConfig.sslMode === "flexible" && (
-                          <span>⚡ Standard proxy mode. SSL completes in 140+ Anycast Vortex hubs. Origin may answer over plain HTTP.</span>
+                          <span>â¡ Standard proxy mode. SSL completes in 140+ Anycast Vortex hubs. Origin may answer over plain HTTP.</span>
                         )}
                         {shieldConfig.sslMode === "full" && (
-                          <span>🔐 Direct end-to-end 2048-bit TLS handshake. Requests remain encrypted until they enter container memory.</span>
+                          <span>ð Direct end-to-end 2048-bit TLS handshake. Requests remain encrypted until they enter container memory.</span>
                         )}
                         {shieldConfig.sslMode === "strict" && (
-                          <span>🛡️ Maximum corporate audit enforcement. Requires valid trust certificates mapped explicitly under settings.</span>
+                          <span>ð¡ï¸ Maximum corporate audit enforcement. Requires valid trust certificates mapped explicitly under settings.</span>
                         )}
                       </div>
                     </div>
@@ -2478,10 +2478,10 @@ export default function App() {
                       <div className="p-3 bg-neutral-950 rounded-lg text-[10px] text-neutral-400 space-y-1">
                         {shieldConfig.securityLevel === "under-attack" ? (
                           <span className="text-rose-400 font-semibold flex items-center gap-1.5 animate-pulse">
-                            🚨 Mitigating DDoS attack. Browsers must complete automatic 3-second Javascript challenges.
+                            ð¨ Mitigating DDoS attack. Browsers must complete automatic 3-second Javascript challenges.
                           </span>
                         ) : (
-                          <span>🛡️ Regular protection mode active. Safe crawlers and legitimate visitors pass uninhibited.</span>
+                          <span>ð¡ï¸ Regular protection mode active. Safe crawlers and legitimate visitors pass uninhibited.</span>
                         )}
                       </div>
                     </div>
@@ -2686,7 +2686,7 @@ export default function App() {
                     </div>
                     {shieldConfig.securityLevel === "under-attack" && (
                       <span className="text-[10px] text-rose-400 font-bold flex items-center gap-1.5 animate-pulse">
-                        ● LIVE FIREWALL BLOCKS BUFFERING
+                        â LIVE FIREWALL BLOCKS BUFFERING
                       </span>
                     )}
                   </div>
@@ -2879,8 +2879,8 @@ export default function App() {
                             <div className="p-3 bg-neutral-950/20 border-b border-neutral-850/85 flex flex-wrap gap-2 text-[10px] text-neutral-505 uppercase font-bold">
                               {selectedDbTable.columns.map((c: any) => (
                                 <span key={c.name} className="px-2 py-0.5 bg-neutral-950 border border-neutral-850 rounded">
-                                  🔒 {c.name}: <span className="text-neutral-400 font-semibold">{c.type}</span>
-                                  {c.isPrimaryKey && <span className="text-amber-500 ml-1">★ PK</span>}
+                                  ð {c.name}: <span className="text-neutral-400 font-semibold">{c.type}</span>
+                                  {c.isPrimaryKey && <span className="text-amber-500 ml-1">â PK</span>}
                                 </span>
                               ))}
                             </div>
@@ -2994,7 +2994,7 @@ export default function App() {
                                 <div className="flex items-center justify-between border-b border-neutral-900 pb-1.5 mb-1 text-[10px] text-neutral-500 font-bold">
                                   <span>Query Output Terminal results</span>
                                   <span className={dbQueryResult.success !== false ? "text-emerald-400" : "text-rose-455"}>
-                                    {dbQueryResult.success !== false ? "✓ COMPLETE SUCCESS" : "✗ EXHAUSTED ERROR"}
+                                    {dbQueryResult.success !== false ? "â COMPLETE SUCCESS" : "â EXHAUSTED ERROR"}
                                   </span>
                                 </div>
                                 
@@ -3082,10 +3082,10 @@ export default function App() {
                             <label className="text-[9px] text-neutral-500 uppercase font-black block">Database Engine / Technology</label>
                             <div className="grid grid-cols-2 gap-2">
                               {[
-                                { id: "postgresql", label: "PostgreSQL", desc: "SQL relational", icon: "🐘" },
-                                { id: "mysql", label: "MySQL", desc: "Standard SQL", icon: "🐬" },
-                                { id: "mongodb", label: "MongoDB", desc: "NoSQL document", icon: "🍃" },
-                                { id: "redis", label: "Redis DB", desc: "Key-value cache", icon: "⚡" }
+                                { id: "postgresql", label: "PostgreSQL", desc: "SQL relational", icon: "ð" },
+                                { id: "mysql", label: "MySQL", desc: "Standard SQL", icon: "ð¬" },
+                                { id: "mongodb", label: "MongoDB", desc: "NoSQL document", icon: "ð" },
+                                { id: "redis", label: "Redis DB", desc: "Key-value cache", icon: "â¡" }
                               ].map((eng) => (
                                 <button
                                   key={eng.id}
@@ -3131,7 +3131,7 @@ export default function App() {
                               <option value="US-East-1 (N. Virginia)">US-East-1 (North Virginia)</option>
                               <option value="EU-West-3 (Paris)">EU-West-3 (Frankfurt/Paris)</option>
                               <option value="AP-East-1 (Tokyo)">AP-East-1 (Tokyo, Japan)</option>
-                              <option value="SA-East-1 (São Paulo)">SA-East-1 (São Paulo)</option>
+                              <option value="SA-East-1 (SÃ£o Paulo)">SA-East-1 (SÃ£o Paulo)</option>
                             </select>
                           </div>
 
@@ -3192,7 +3192,7 @@ export default function App() {
                             {isProvisioningDb ? (
                               <RefreshCw className="h-4 w-4 animate-spin text-neutral-950" />
                             ) : (
-                              "⚡ PROVISION CLOUD INSTANCE"
+                              "â¡ PROVISION CLOUD INSTANCE"
                             )}
                           </button>
                         </div>
@@ -3202,7 +3202,7 @@ export default function App() {
                       <div className="xl:col-span-2 space-y-4 font-mono text-xs">
                         {databaseServices.length === 0 ? (
                           <div className="bg-neutral-900 border border-neutral-800 p-10 rounded-xl text-center space-y-3 shadow-sm font-mono text-xs">
-                            <span className="text-3xl">🗄️</span>
+                            <span className="text-3xl">ðï¸</span>
                             <h4 className="text-white font-bold text-sm uppercase">No Clusters Provisioned Yet</h4>
                             <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed mt-1 font-mono">
                               You have no databases running under this project environment. Select an engine, specify resource coordinates on the left column panel, and click provision to spin up an instant live cluster.
@@ -3215,7 +3215,7 @@ export default function App() {
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 pb-3 mb-4 font-mono">
                                   <div className="flex items-center gap-2">
                                     <span className="text-lg">
-                                      {srv.type === "postgresql" ? "🐘" : srv.type === "mysql" ? "🐬" : srv.type === "mongodb" ? "🍃" : "⚡"}
+                                      {srv.type === "postgresql" ? "ð" : srv.type === "mysql" ? "ð¬" : srv.type === "mongodb" ? "ð" : "â¡"}
                                     </span>
                                     <div>
                                       <h4 className="font-bold text-white text-xs uppercase flex items-center gap-1.5 font-mono">
@@ -3226,7 +3226,7 @@ export default function App() {
                                       </h4>
                                       <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5 font-mono">
                                         <span>Region: {srv.region || "US-East-1"}</span>
-                                        <span>•</span>
+                                        <span>â¢</span>
                                         <span>Allocations: {srv.allocatedCpu} vCPU / {srv.allocatedRam} MB RAM</span>
                                       </div>
                                     </div>
@@ -3251,7 +3251,7 @@ export default function App() {
                                       title="Clone standard state dataset for isolated sandboxed logic matching"
                                       className="bg-neutral-950 border border-neutral-850 hover:bg-neutral-900 hover:border-neutral-700 text-neutral-400 h-7.5 px-2.5 rounded text-[10px] uppercase font-black transition duration-150 cursor-pointer flex items-center gap-1 font-mono"
                                     >
-                                      🐑 Clone Cluster
+                                      ð Clone Cluster
                                     </button>
 
                                     <button
@@ -3367,7 +3367,7 @@ export default function App() {
                           tech: "FastAPI, PostgreSQL",
                           engine: "postgresql",
                           label: "Deploy Python Cluster",
-                          img: "🐍"
+                          img: "ð"
                         },
                         {
                           title: "Next.js AI Chatbot Stack (MongoDB + AI SDK)",
@@ -3375,7 +3375,7 @@ export default function App() {
                           tech: "Next.js, MongoDB, LLM",
                           engine: "mongodb",
                           label: "Deploy NextJS Hub",
-                          img: "💬"
+                          img: "ð¬"
                         },
                         {
                           title: "Redis Realtime PubSub Node Engine",
@@ -3383,7 +3383,7 @@ export default function App() {
                           tech: "Node.js, Redis Cache",
                           engine: "redis",
                           label: "Deploy Redis Gateway",
-                          img: "⚡"
+                          img: "â¡"
                         },
                         {
                           title: "Node Express REST microservice",
@@ -3391,7 +3391,7 @@ export default function App() {
                           tech: "Express, PostgreSQL",
                           engine: "postgresql",
                           label: "Deploy API Service",
-                          img: "🚀"
+                          img: "ð"
                         }
                       ].map((tpl) => (
                         <div key={tpl.title} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-neutral-700 transition duration-155 flex flex-col justify-between shadow-sm">
@@ -3524,10 +3524,10 @@ export default function App() {
                               }}
                               className="bg-neutral-950 border border-neutral-850 text-neutral-200 rounded h-8 px-2 w-full font-mono text-[11px] outline-none cursor-pointer"
                             >
-                              <option value="256MB">256MB Micro — Free Tier</option>
-                              <option value="512MB">512MB Medium — Standard</option>
-                              <option value="1GB">1GB Large — Professional Scale</option>
-                              <option value="2GB">2GB Extreme — Production swarm</option>
+                              <option value="256MB">256MB Micro â Free Tier</option>
+                              <option value="512MB">512MB Medium â Standard</option>
+                              <option value="1GB">1GB Large â Professional Scale</option>
+                              <option value="2GB">2GB Extreme â Production swarm</option>
                             </select>
                           </div>
 
@@ -3865,7 +3865,7 @@ export default function App() {
                             </span>
                           </div>
                           <p className="text-[10px] text-neutral-500">
-                            Registered: <span className="text-neutral-400">{new Date(usr.createdAt).toLocaleString()}</span> • Last Session: <span className="text-neutral-400">{new Date(usr.lastLogin).toLocaleString()}</span>
+                            Registered: <span className="text-neutral-400">{new Date(usr.createdAt).toLocaleString()}</span> â¢ Last Session: <span className="text-neutral-400">{new Date(usr.lastLogin).toLocaleString()}</span>
                           </p>
                         </div>
 
@@ -4123,7 +4123,7 @@ export default function App() {
                               : "border-transparent text-neutral-400 hover:bg-neutral-950/50 hover:text-neutral-200"
                           }`}
                         >
-                          <span>📁 {ws.name}</span>
+                          <span>ð {ws.name}</span>
                           <span className="text-[9px] font-sans bg-neutral-800 px-2 py-0.5 rounded text-neutral-405 uppercase font-black">
                             {ws.members?.length || 1} members
                           </span>
@@ -4315,7 +4315,7 @@ export default function App() {
                         </button>
                       </div>
                       <span className="text-[10px] text-emerald-500/80 block leading-normal">
-                        No PC or VPS required! Run programmatically in the cloud container. Zero authentication required—directly paste into LobeChat SaaS, Coze, or Dify.
+                        No PC or VPS required! Run programmatically in the cloud container. Zero authentication requiredâdirectly paste into LobeChat SaaS, Coze, or Dify.
                       </span>
                     </div>
 
@@ -4353,7 +4353,7 @@ export default function App() {
 
                     <div className="space-y-2">
                       <label className="text-xs uppercase font-bold text-neutral-500 font-mono tracking-wider">
-                        🛡️ ACTIVE SECURITY GUARDS
+                        ð¡ï¸ ACTIVE SECURITY GUARDS
                       </label>
                       <div className="p-3 bg-neutral-950/80 border border-neutral-800/80 rounded-lg text-[11px] text-neutral-300 leading-normal space-y-1 font-mono">
                         <div className="flex justify-between">
@@ -4436,7 +4436,7 @@ export default function App() {
                             : "border-transparent text-neutral-400 hover:text-neutral-200"
                         }`}
                       >
-                        ☁️ Cloud & Serverless SaaS
+                        âï¸ Cloud & Serverless SaaS
                       </button>
                                 {mcpAgentGuideTab === "claude" && (
                         <div className="space-y-4">
@@ -4481,7 +4481,7 @@ export default function App() {
                             </button>
                           </div>
                           <div className="text-[11px] text-neutral-500 leading-normal">
-                            💡 **Where is the configuration file?**
+                            ð¡ **Where is the configuration file?**
                             <ul className="list-disc list-inside mt-1 space-y-1">
                               <li>**macOS:** <code className="text-neutral-400">~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
                               <li>**Windows:** <code className="text-neutral-400">%APPDATA%\Claude\claude_desktop_config.json</code></li>
@@ -4516,7 +4516,7 @@ export default function App() {
                             </div>
                           </div>
                           <p className="text-[11px] text-neutral-500 leading-normal">
-                            🎉 Once added, Cursor's AI Composer and Chat will immediately gain native tool execution access to list and modify database tables, environments, container configurations, and domains.
+                            ð Once added, Cursor's AI Composer and Chat will immediately gain native tool execution access to list and modify database tables, environments, container configurations, and domains.
                           </p>
                         </div>
                       )}
@@ -4585,7 +4585,7 @@ console.log(result.content[0].text);`);
                         <div className="space-y-5 text-xs text-neutral-300 leading-relaxed font-sans">
                           <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 space-y-2">
                             <h4 className="text-amber-400 font-bold flex items-center gap-2">
-                              ⚠️ Understanding the 302 Authentication Wall
+                              â ï¸ Understanding the 302 Authentication Wall
                             </h4>
                             <p className="text-[11px] text-neutral-300 leading-normal">
                               The current development URL (<code className="text-neutral-100 font-mono text-[10px] bg-neutral-900 px-1 py-0.5 rounded">{window.location.origin}</code>) is run in a secure sandbox preview mode protected by **Google AI Studio OAuth**. 
@@ -4595,7 +4595,7 @@ console.log(result.content[0].text);`);
 
                           <div className="space-y-3">
                             <h4 className="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
-                              🚀 100% Serverless Solution (No PC or VPS Needed)
+                              ð 100% Serverless Solution (No PC or VPS Needed)
                             </h4>
                             <p>
                               To make this MCP Server fully public so any Cloud/SaaS AI can connect to it, you can host the code on a serverless provider in under 2 minutes:
@@ -4615,7 +4615,7 @@ console.log(result.content[0].text);`);
 
                           <div className="space-y-3">
                             <h4 className="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
-                              🌟 Compatible Cloud & SaaS Clients
+                              ð Compatible Cloud & SaaS Clients
                             </h4>
                             <p>
                               Once you have a public HTTPS URL (via serverless deployment), you can connect to these top cloud-native AI agents and engines:
@@ -4847,14 +4847,14 @@ console.log(result.content[0].text);`);
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2.5">
                                 <div className="h-8 w-8 bg-neutral-900 border border-neutral-800 rounded-lg flex items-center justify-center text-neutral-100 font-sans select-none">
-                                  {connector.logo === "slack" && "💬"}
-                                  {connector.logo === "github" && "🐙"}
-                                  {connector.logo === "discord" && "👾"}
-                                  {connector.logo === "notion" && "📑"}
-                                  {connector.logo === "stripe" && "💳"}
-                                  {connector.logo === "hubspot" && "🎯"}
-                                  {connector.logo === "gmail" && "✉️"}
-                                  {connector.logo === "salesforce" && "☁️"}
+                                  {connector.logo === "slack" && "ð¬"}
+                                  {connector.logo === "github" && "ð"}
+                                  {connector.logo === "discord" && "ð¾"}
+                                  {connector.logo === "notion" && "ð"}
+                                  {connector.logo === "stripe" && "ð³"}
+                                  {connector.logo === "hubspot" && "ð¯"}
+                                  {connector.logo === "gmail" && "âï¸"}
+                                  {connector.logo === "salesforce" && "âï¸"}
                                 </div>
                                 <div>
                                   <span className="text-xs font-bold text-neutral-200 block uppercase tracking-wide font-sans">
@@ -4886,7 +4886,7 @@ console.log(result.content[0].text);`);
                             {connector.isConnected && (
                               <div className="flex items-center justify-between border-t border-neutral-900 pt-2 text-[10px] text-neutral-500 font-mono">
                                 <span>Tool scopes: <strong className="text-neutral-300 font-bold">{connector.scopesCount || "Full"} authorized</strong></span>
-                                <span className="text-emerald-400 select-none">● READY</span>
+                                <span className="text-emerald-400 select-none">â READY</span>
                               </div>
                             )}
                           </div>
@@ -4922,15 +4922,18 @@ console.log(result.content[0].text);`);
                     {/* Model & Platform Selector */}
                     <div className="space-y-3 font-mono text-xs">
                       <div className="space-y-1.5">
-                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Orchestrator Platform Model</label>
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase">Gemini Model</label>
                         <select
                           value={mcpAgentPlatform}
                           onChange={(e) => setMcpAgentPlatform(e.target.value as any)}
                           className="w-full bg-neutral-950 border border-neutral-800 rounded h-9 px-2.5 text-neutral-200 focus:outline-none focus:border-neutral-700 font-mono"
                         >
-                          <option value="VortexAutonomousOS">Vortex-3.5-AutonomousOS (Gemini Engine)</option>
-                          <option value="VortexCoreLLM">Vortex-3.1-CoreLLM (Durable Reasoning)</option>
-                          <option value="VortexAnycastRouting">Vortex-AnycastRouting (Dynamic Agent Proxy)</option>
+                          <option value="gemini-2.5-pro">Gemini 2.5 Pro — best reasoning</option>
+                          <option value="gemini-2.5-flash">Gemini 2.5 Flash — fast + smart</option>
+                          <option value="gemini-2.0-flash">Gemini 2.0 Flash — lightweight</option>
+                          <option value="gemini-2.0-flash-thinking">Gemini 2.0 Flash Thinking — deep reasoning</option>
+                          <option value="gemini-1.5-pro">Gemini 1.5 Pro — reliable</option>
+                          <option value="gemini-1.5-flash">Gemini 1.5 Flash — legacy fast</option>
                         </select>
                       </div>
                     </div>
@@ -5086,7 +5089,7 @@ console.log(result.content[0].text);`);
                           setAgentRunStatus("running");
                           setAgentLogs(["[SYSTEM] Connecting to Vortex Orchestrator Engine..."]);
 
-                          const eventSource = new EventSource(`/api/mcp/run?prompt=${encodeURIComponent(agentPromptText)}&agentPlatform=${mcpAgentPlatform}`);
+                          const eventSource = new EventSource(`/api/mcp/run?prompt=${encodeURIComponent(agentPromptText)}&model=${mcpAgentPlatform}`);
 
                           eventSource.onmessage = (event) => {
                             try {
@@ -5223,7 +5226,7 @@ console.log(result.content[0].text);`);
                             <span className="text-neutral-400 font-bold">{env.key}</span>
                             <span className="text-neutral-600 select-none mx-2">=</span>
                             <span className="text-neutral-300 font-semibold select-all">
-                              {isRevealed ? env.value : "••••••••••••••••••••"}
+                              {isRevealed ? env.value : "â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢â¢"}
                             </span>
                           </div>
                           
@@ -5781,7 +5784,7 @@ console.log(result.content[0].text);`);
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[9.5px] uppercase text-neutral-450 font-bold block">Vortex Autonomous OS API Token</label>
-                            <span className="text-[9px] text-emerald-400">● SECURED VAULT</span>
+                            <span className="text-[9px] text-emerald-400">â SECURED VAULT</span>
                           </div>
                           <input
                             type="password"
@@ -5794,7 +5797,7 @@ console.log(result.content[0].text);`);
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[9.5px] uppercase text-neutral-450 font-bold block">Vortex LLM Gateway Secret Key</label>
-                            <span className="text-[9px] text-emerald-400">● SECURED VAULT</span>
+                            <span className="text-[9px] text-emerald-400">â SECURED VAULT</span>
                           </div>
                           <input
                             type="password"
@@ -5807,7 +5810,7 @@ console.log(result.content[0].text);`);
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[9.5px] uppercase text-neutral-450 font-bold block">Vortex Edge Router Credentials Key</label>
-                            <span className="text-[9px] text-emerald-400">● SECURED VAULT</span>
+                            <span className="text-[9px] text-emerald-400">â SECURED VAULT</span>
                           </div>
                           <input
                             type="password"
