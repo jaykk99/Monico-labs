@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { supabase } from '../supabase'; // Import Supabase client
 
 interface Props {
   children?: ReactNode;
@@ -13,15 +14,24 @@ class ErrorBoundary extends Component<Props, State> {
   declare props: Props;
   public state: State = {
     hasError: false,
-    errorMsg: ""
+    errorMsg: ''
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, errorMsg: error.message + "\n" + error.stack };
+    return { hasError: true, errorMsg: error.message + '\n' + error.stack }; // Log error to Supabase
+    supabase.from('errors').insert({
+      error: error.message,
+      stack: error.stack
+    });
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    console.error('Uncaught error:', error, errorInfo);
+    // Log error to Supabase
+    supabase.from('errors').insert({
+      error: error.message,
+      stack: error.stack
+    });
   }
 
   public render() {
