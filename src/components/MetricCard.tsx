@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 interface MetricCardProps {
   id: string;
@@ -8,6 +8,8 @@ interface MetricCardProps {
   isPositive?: boolean;
   icon: React.ReactNode;
   subtitle?: string;
+  onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 export default function MetricCard({
@@ -18,6 +20,8 @@ export default function MetricCard({
   isPositive = true,
   icon,
   subtitle,
+  onDelete,
+  onEdit,
 }: MetricCardProps) {
   return (
     <div
@@ -32,17 +36,36 @@ export default function MetricCard({
         <div className="p-2 bg-neutral-800/60 rounded-lg text-neutral-400 border border-neutral-700/30">
           {icon}
         </div>
+        {onDelete && (
+          <button
+            className="text-neutral-500 hover:text-neutral-300"
+            onClick={onDelete}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="4" x2="20" y2="20" />
+              <line x1="20" y1="4" x2="4" y2="20" />
+            </svg>
+          </button>
+        )}
+        {onEdit && (
+          <button
+            className="text-neutral-500 hover:text-neutral-300"
+            onClick={onEdit}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2C8.1 2 5 5.1 5 9s3.1 7 7 7 7-3.1 7-7S16.9 2 12 2z"/>
+              <path d="M12 12h.01M12 12v.01"/>
+            </svg>
+          </button>
+        )}
       </div>
-      
       {(change || subtitle) && (
         <div className="mt-4 pt-3 border-t border-neutral-800/50 flex items-center justify-between">
           {change ? (
             <span
-              className={`text-xs font-mono font-medium flex items-center gap-1 ${
-                isPositive ? "text-emerald-400" : "text-rose-400"
-              }`}
+              className={`text-xs font-mono font-medium flex items-center gap-1 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}
             >
-              {isPositive ? "↑" : "↓"} {change}
+              {isPositive ? '↑' : '↓'} {change}
             </span>
           ) : (
             <span className="text-xs text-neutral-500">{subtitle}</span>
