@@ -1,10 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Play, Terminal, Database, Code, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Layers } from "lucide-react";
 import { ServerlessFunction, FunctionExecutionLog } from "../types";
 
 interface ServerlessPlaygroundProps {
   projectId: string;
 }
+
+// Utility to add line numbers and highlight errors
+const highlightCode = (code: string, errorLine?: number) => {
+  return code.split('\n').map((line, index) => {
+    const lineNumber = index + 1;
+    const isErrorLine = errorLine && lineNumber === errorLine;
+    return (
+      `<span class="line-number ${isErrorLine ? 'text-rose-400 font-bold' : 'text-neutral-600'}">${String(lineNumber).padStart(3, ' ')}</span> ` +
+      `<span class="${isErrorLine ? 'bg-rose-900/20 rounded-sm' : ''}">${line}</span>`
+    );
+  }).join('\n');
+};
 
 export default function ServerlessPlayground({ projectId }: ServerlessPlaygroundProps) {
   const [functions, setFunctions] = useState<ServerlessFunction[]>([]);
@@ -15,6 +27,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
   const [isLoading, setIsLoading] = useState(false);
   const [execResult, setExecResult] = useState<FunctionExecutionLog | null>(null);
   const [executionLogs, setExecutionLogs] = useState<FunctionExecutionLog[]>([]);
+  const [errorHighlightLine, setErrorHighlightLine] = useState<number | undefined>(undefined);
   
   // Custom Function creation state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -22,6 +35,9 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
   const [newFuncRoute, setNewFuncRoute] = useState("");
   const [newFuncCode, setNewFuncCode] = useState("");
   const [newFuncDesc, setNewFuncDesc] = useState("");
+
+  // Ref for the code editor to scroll to the error line
+  const codeEditorRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch functions for project
   useEffect(() => {
@@ -34,8 +50,6 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         setFunctions(data);
         if (data.length > 0) {
           setSelectedFunc(data[0]);
-        } else {
-          setSelectedFunc(null);
         }
       })
       .catch((err) => console.error("Error fetching functions", err));
@@ -50,9 +64,18 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         setRequestBodyText(JSON.stringify({ userId: 104, fetchDetails: true }, null, 2));
       }
       setExecResult(null);
+      setErrorHighlightLine(undefined);
       fetchExecLogs(selectedFunc.id);
     }
   }, [selectedFunc]);
+
+  // Scroll to error line when it updates
+  useEffect(() => {
+    if (errorHighlightLine && codeEditorRef.current) {
+      const lineNumberHeight = codeEditorRef.current.scrollHeight / selectedFunc!.code.split('\n').length;
+      codeEditorRef.current.scrollTop = (errorHighlightLine - 1) * lineNumberHeight - (codeEditorRef.current.clientHeight / 3); // Center the line more or less
+    }
+  }, [errorHighlightLine, selectedFunc]);
 
   const fetchExecLogs = (funcId: string) => {
     fetch(`/api/functions/logs/${funcId}`)
@@ -66,6 +89,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
 
     setIsLoading(true);
     setExecResult(null);
+    setErrorHighlightLine(undefined);
 
     let parsedBody = {};
     try {
@@ -85,43 +109,20 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         }),
       });
 
-      const data = await response.json();
+      const data: FunctionExecutionLog = await response.json();
       setExecResult(data);
       fetchExecLogs(selectedFunc.id);
+
+      // Parse stdout for error line number
+      const errorMatch = data.stdout.join('\n').match(/at \S+ \(eval at \S+ \((<anonymous>|\S+\.ts):(\d+):(\d+)\)/);
+      if (errorMatch && errorMatch[2]) {
+        setErrorHighlightLine(parseInt(errorMatch[2], 10));
+      }
+
     } catch (err) {
       console.error("Failed running serverless code", err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleCreateFunction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFuncName) return;
-
-    try {
-      const routeVal = newFuncRoute || `/api/${newFuncName.replace(/\.[a-z]+$/, "")}`;
-      const response = await fetch(`/api/functions/${projectId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newFuncName,
-          code: newFuncCode || `export default async function handler(req: Request) {\n  return Response.json({ success: true });\n}`,
-          route: routeVal,
-          description: newFuncDesc || "Custom serverless route endpoint",
-        }),
-      });
-
-      const data = await response.json();
-      setFunctions((prev) => [...prev, data]);
-      setSelectedFunc(data);
-      setShowAddModal(false);
-      setNewFuncName("");
-      setNewFuncRoute("");
-      setNewFuncCode("");
-      setNewFuncDesc("");
-    } catch (err) {
-      console.error("Failed to create code endpoint", err);
     }
   };
 
@@ -229,10 +230,13 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
                 </div>
 
                 <div className="relative">
-                  <textarea
-                    value={selectedFunc.code}
-                    readOnly
-                    className="w-full h-[280px] bg-neutral-950 border border-neutral-800/80 rounded-lg p-3 text-[10.5px] text-indigo-400 font-mono focus:outline-none focus:border-neutral-850 leading-normal resize-none selection:bg-indigo-500/25 select-all"
+                  <div
+                    ref={codeEditorRef}
+                    dangerouslySetInnerHTML={{
+                      __html: highlightCode(selectedFunc.code, errorHighlightLine),
+                    }}
+                    className="w-full h-[280px] bg-neutral-950 border border-neutral-800/80 rounded-lg p-3 text-[10.5px] text-indigo-400 font-mono focus:outline-none focus:border-neutral-850 leading-normal resize-none selection:bg-indigo-500/25 select-all overflow-auto whitespace-pre no-scrollbar"
+                    style={{ tabSize: 2 }}
                   />
                   <div className="absolute top-2.5 right-2 text-[9px] bg-neutral-900 border border-neutral-800 px-1.5 py-0.5 rounded text-neutral-500 font-mono uppercase tracking-wider">
                     Read-Only Source
