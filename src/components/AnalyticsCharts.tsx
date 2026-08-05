@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Zap, Activity, ShieldAlert, Cpu, AlertCircle, BarChart3 } from "lucide-react";
 import { AnalyticsMetric, CoreWebVitals } from "../types";
+import MetricCard from "./MetricCard"; // Import MetricCard
 
 interface AnalyticsChartsProps {
   metrics: AnalyticsMetric[];
@@ -32,6 +33,8 @@ export default function AnalyticsCharts({
   const maxRequests = Math.max(...metrics.map((m) => m.requests), 1);
   const maxBandwidth = Math.max(...metrics.map((m) => m.bandwidth), 1);
   const maxLatency = Math.max(...metrics.map((m) => m.latency), 1);
+  const maxErrors = Math.max(...metrics.map((m) => m.errors), 1); // For agent error rate
+  const maxSuccessRate = Math.max(...metrics.map((m) => m.successRate || 0), 1); // For agent success rate
 
   // SVG dimensions
   const width = 580;
@@ -53,6 +56,8 @@ export default function AnalyticsCharts({
   const reqPoints = getPoints(metrics.map((m) => m.requests), maxRequests);
   const bandPoints = getPoints(metrics.map((m) => m.bandwidth), maxBandwidth);
   const latPoints = getPoints(metrics.map((m) => m.latency), maxLatency);
+  const errorPoints = getPoints(metrics.map((m) => m.errors), maxErrors);
+  const successRatePoints = getPoints(metrics.map((m) => m.successRate || 0), maxSuccessRate);
 
   // Convert points to SVG SVGPath strings
   const getPathString = (points: { x: number; y: number }[]) => {
@@ -96,6 +101,19 @@ export default function AnalyticsCharts({
       </span>
     );
   };
+
+  // Calculate latest agent metrics for MetricCards
+  const latestMetric = metrics[metrics.length - 1];
+  const agentSuccessRate = latestMetric.successRate !== undefined ? `${latestMetric.successRate.toFixed(2)}%` : "N/A";
+  const agentErrorRate = latestMetric.agentErrors !== undefined ? `${latestMetric.agentErrors.toFixed(2)}%` : "N/A";
+  const agentAvgLatency = latestMetric.agentLatency !== undefined ? `${latestMetric.agentLatency.toFixed(2)}ms` : "N/A";
+
+  // Determine if agent metrics are positive or negative for MetricCard styling
+  // Assuming higher success rate is positive, lower error rate is positive, lower latency is positive
+  const isSuccessRatePositive = latestMetric.successRate !== undefined ? latestMetric.successRate >= 70 : true; // Example threshold
+  const isErrorRatePositive = latestMetric.agentErrors !== undefined ? latestMetric.agentErrors <= 5 : true; // Example threshold
+  const isLatencyPositive = latestMetric.agentLatency !== undefined ? latestMetric.agentLatency <= 200 : true; // Example threshold
+
 
   return (
     <div className="space-y-6">
@@ -296,6 +314,49 @@ export default function AnalyticsCharts({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Agent Performance Dashboard */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-neutral-100 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-sky-400" />
+            Agent Performance Metrics
+          </h3>
+          <p className="text-xs text-neutral-500 max-w-lg">
+            Key performance indicators for agent efficacy, including success rates, error rates, and average response latency.
+          </p>
+        </div>
+        <span className="text-[10px] bg-neutral-800 text-neutral-400 border border-neutral-700/50 px-2 py-0.5 rounded font-mono uppercase">
+          Agent Live
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <MetricCard
+          id="agent-success-rate"
+          title="Agent Success Rate"
+          value={agentSuccessRate}
+          subtitle="Overall success percentage"
+          icon={<Zap className="h-5 w-5" />}
+          isPositive={isSuccessRatePositive}
+        />
+        <MetricCard
+          id="agent-error-rate"
+          title="Agent Error Rate"
+          value={agentErrorRate}
+          subtitle="Percentage of failed operations"
+          icon={<ShieldAlert className="h-5 w-5" />}
+          isPositive={isErrorRatePositive}
+        />
+        <MetricCard
+          id="agent-avg-latency"
+          title="Agent Avg. Latency"
+          value={agentAvgLatency}
+          subtitle="Average response time"
+          icon={<Cpu className="h-5 w-5" />}
+          isPositive={isLatencyPositive}
+        />
       </div>
     </div>
   );

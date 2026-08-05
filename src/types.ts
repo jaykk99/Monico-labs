@@ -54,6 +54,9 @@ export interface AnalyticsMetric {
   bandwidth: number; // in MB
   errors: number; // count
   latency: number; // in ms
+  successRate?: number; // New: Agent success rate (percentage)
+  agentErrors?: number; // New: Agent specific error rate (percentage)
+  agentLatency?: number; // New: Agent specific average latency (in ms)
 }
 
 export interface CoreWebVitals {
