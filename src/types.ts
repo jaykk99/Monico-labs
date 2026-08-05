@@ -19,7 +19,7 @@ export interface Project {
 export interface Deployment {
   id: string;
   projectId: string;
-  status: 'building' | 'ready' | 'failed';
+  status: 'building' | 'ready' | 'failed' | 'BUILDING' | 'SUCCESS' | 'FAILED'; // Added inconsistent statuses to match DeploymentLogConsole.tsx, ideally this would be unified to 'building' | 'ready' | 'failed'
   previewUrl: string;
   createdAt: string;
   commitMessage: string;
@@ -99,11 +99,11 @@ export interface DbColumn {
   defaultValue?: string;
 }
 
-export interface DbTable {
+export interface DbTable<T = Record<string, any>> { // Using a generic type parameter for better type safety
   id: string;
   name: string;
   columns: DbColumn[];
-  rows: Record<string, any>[];
+  rows: T[];
 }
 
 export interface AuthConfig {
@@ -139,73 +139,4 @@ export interface ComposioConnector {
   id: string;
   name: string;
   category: string;
-  description: string;
-  logo: string;
-  isConnected: boolean;
-  scopesCount: number;
-}
-
-export interface WorkspaceMember {
-  email: string;
-  role: 'Owner' | 'Admin' | 'Member';
-}
-
-export interface Workspace {
-  id: string;
-  name: string;
-  owner: string;
-  members: WorkspaceMember[];
-}
-
-export interface DatabaseService {
-  id: string;
-  projectId: string;
-  name: string;
-  type: 'postgresql' | 'mysql' | 'mongodb' | 'redis';
-  status: 'provisioning' | 'active' | 'suspended' | 'scaling';
-  connectionString: string;
-  host: string;
-  port: number;
-  username?: string;
-  password?: string;
-  databaseName?: string;
-  allocatedCpu: number;
-  allocatedRam: number;
-  allocatedStorage: number;
-  metrics: {
-    cpuUsage: number[];
-    ramUsage: number[];
-  };
-  region: string;
-  createdAt: string;
-}
-
-export interface CloudTemplate {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  databasesNeeded: ('postgresql' | 'mysql' | 'mongodb' | 'redis')[];
-  envKeys: string[];
-  avatarText: string;
-  color: string;
-}
-
-export interface ScalingConfig {
-  minInstances: number;
-  maxInstances: number;
-  targetCpuPercent: number;
-  maxMemoryOption: string;
-  concurrencyLimit: number;
-  optimizeTreeShaking: boolean;
-}
-
-export interface ProjectEnvironment {
-  id: string;
-  projectId: string;
-  name: string; // e.g. "production", "staging"
-  isActive: boolean;
-  variablesCount: number;
-  clonedFrom?: string;
-}
-
+  description: string

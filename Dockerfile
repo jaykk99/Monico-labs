@@ -27,6 +27,10 @@ RUN apt-get update && apt-get install -y \
 
 # Tell puppeteer to skip downloading bundled Chrome — use system Chromium instead
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Puppeteer will try to find the executable in common locations.
+# If it's not found, it might still fall back to downloading.
+# Explicitly setting PUPPETEER_EXECUTABLE_PATH is generally safer if the path is known and stable.
+# For Debian-based systems, /usr/bin/chromium is typically correct for the 'chromium' package.
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app

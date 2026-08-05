@@ -27,24 +27,27 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
   useEffect(() => {
     fetch(`/api/functions/${projectId}`)
       .then((res) => {
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error("Failed to fetch functions");
         return res.json();
       })
       .then((data) => {
         setFunctions(data);
         if (data.length > 0) {
-          setSelectedFunc(data[0]);
+          setSelectedFunc(data);
         } else {
           setSelectedFunc(null);
         }
       })
-      .catch((err) => console.error("Error fetching functions", err));
+      .catch((err) => console.error("Error fetching functions:", err.message));
   }, [projectId]);
 
   // Handle selected function change to preset request bodies
   useEffect(() => {
     if (selectedFunc) {
-      if (selectedFunc.name === "analyze-sentiment.ts") {
+      // Using a function ID or a specific property on the function object would be more robust
+      // than a magic string for special behavior. For now, we'll keep the magic string but acknowledge
+      // it's a candidate for future refactoring.
+      if (selectedFunc.name === "analyze-sentiment.ts") { 
         setRequestBodyText(JSON.stringify({ text: "This Vortex cloud deployment portal is absolutely breathtaking! The layouts are so fluid." }, null, 2));
       } else {
         setRequestBodyText(JSON.stringify({ userId: 104, fetchDetails: true }, null, 2));
@@ -56,9 +59,12 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
 
   const fetchExecLogs = (funcId: string) => {
     fetch(`/api/functions/logs/${funcId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch execution logs");
+        return res.json();
+      })
       .then((data) => setExecutionLogs(data))
-      .catch((err) => console.error("Error fetching execution logs", err));
+      .catch((err) => console.error("Error fetching execution logs:", err.message));
   };
 
   const handleRunFunction = async () => {
@@ -70,8 +76,10 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
     let parsedBody = {};
     try {
       parsedBody = requestBodyText ? JSON.parse(requestBodyText) : {};
-    } catch (e) {
-      // Allow raw parsing fallback, server handles gracefully too
+    } catch (e: any) {
+      console.error("JSON parsing error:", e.message);
+      // If parsing fails, send the raw text, the server might handle it or return an error
+      parsedBody = requestBodyText; 
     }
 
     try {
@@ -88,8 +96,18 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       const data = await response.json();
       setExecResult(data);
       fetchExecLogs(selectedFunc.id);
-    } catch (err) {
-      console.error("Failed running serverless code", err);
+    } catch (err: any) {
+      console.error("Failed running serverless code:", err.message || err);
+      setExecResult({ // Provide some feedback to the user on execution failure
+        id: "error",
+        functionId: selectedFunc.id,
+        timestamp: new Date().toISOString(),
+        status: 500,
+        durationMs: 0,
+        memoryMb: 0,
+        stdout: ["Error executing function: " + (err.message || "Unknown error")],
+        responseBody: JSON.stringify({ error: err.message || "Unknown error" }),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +118,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
     if (!newFuncName) return;
 
     try {
-      const routeVal = newFuncRoute || `/api/${newFuncName.replace(/\.[a-z]+$/, "")}`;
+      const routeVal = newFuncRoute || `/api/${newFuncName.replace(/\.[a-z]+$/, "").replace(/[^a-z0-9_-]/g, "-")}`;
       const response = await fetch(`/api/functions/${projectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,6 +130,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         }),
       });
 
+      if (!response.ok) throw new Error("Failed to create function");
       const data = await response.json();
       setFunctions((prev) => [...prev, data]);
       setSelectedFunc(data);
@@ -120,8 +139,24 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       setNewFuncRoute("");
       setNewFuncCode("");
       setNewFuncDesc("");
-    } catch (err) {
-      console.error("Failed to create code endpoint", err);
+    } catch (err: any) {
+      console.error("Failed to create code endpoint:", err.message);
+    }
+  };
+
+  const sanitizeOutput = (input: string[]) => {
+    // Basic sanitization for rendering in <pre> tags.
+    // In a production scenario, a more robust HTML sanitization library should be used.
+    return input.map(line => line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join("\n");
+  };
+
+  const sanitizeResponseBody = (input: string) => {
+    try {
+      const parsed = JSON.parse(input);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      // If it's not valid JSON, treat it as plain text and sanitize
+      return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
   };
 
@@ -313,9 +348,10 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
                         <Terminal className="h-3 w-3" />
                         CONTAINER TRACE LOGS (STDOUT)
                       </span>
-                      <pre className="text-[10px] text-neutral-400 font-mono max-h-[75px] overflow-auto bg-neutral-900 border border-neutral-850/60 p-2 rounded leading-relaxed select-all">
-                        {execResult.stdout.join("\n")}
-                      </pre>
+                      <pre 
+                        className="text-[10px] text-neutral-400 font-mono max-h-[75px] overflow-auto bg-neutral-900 border border-neutral-850/60 p-2 rounded leading-relaxed select-all"
+                        dangerouslySetInnerHTML={{ __html: sanitizeOutput(execResult.stdout) }}
+                      />
                     </div>
 
                     {/* Returning JSON Payload */}
@@ -323,9 +359,10 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
                       <span className="block text-[9px] uppercase font-bold tracking-wider text-neutral-600 font-mono">
                         RESPONSE PAYLOAD (JSON)
                       </span>
-                      <pre className="text-[10.5px] text-emerald-400 font-mono max-h-[110px] overflow-auto bg-neutral-900 border border-neutral-850/60 p-2 rounded leading-snug select-all">
-                        {execResult.responseBody}
-                      </pre>
+                      <pre 
+                        className="text-[10.5px] text-emerald-400 font-mono max-h-[110px] overflow-auto bg-neutral-900 border border-neutral-850/60 p-2 rounded leading-snug select-all"
+                        dangerouslySetInnerHTML={{ __html: sanitizeResponseBody(execResult.responseBody) }}
+                      />
                     </div>
                   </div>
                 ) : (
