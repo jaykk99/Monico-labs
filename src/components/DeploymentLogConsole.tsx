@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Terminal, Search, Trash2, ArrowDownCircle } from "lucide-react";
+import { Terminal, Search, Trash2, ArrowDownCircle, CheckCircle, XCircle, Clock } from "lucide-react";
+
+export interface Deployment {
+  id: string;
+  projectId: string;
+  timestamp: string; // ISO string for date and time
+  status: "BUILDING" | "SUCCESS" | "FAILED";
+  logs: string[];
+}
 
 interface DeploymentLogConsoleProps {
-  logs: string[];
-  isBuilding: boolean;
+  deployment: Deployment;
+  isBuilding?: boolean; // Optional, only true for the currently active deployment
   onClear?: () => void;
 }
 
 export default function DeploymentLogConsole({
-  logs,
-  isBuilding,
+  deployment,
+  isBuilding = false,
   onClear,
 }: DeploymentLogConsoleProps) {
   const [filterText, setFilterText] = useState("");
-  const [visibleLogsCount, setVisibleLogsCount] = useState(isBuilding ? 0 : logs.length);
+  const [visibleLogsCount, setVisibleLogsCount] = useState(isBuilding ? 0 : deployment.logs.length);
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
   // Restart streaming if logs change or building state triggers
@@ -22,7 +30,7 @@ export default function DeploymentLogConsole({
       setVisibleLogsCount(0);
       const interval = setInterval(() => {
         setVisibleLogsCount((prev) => {
-          if (prev < logs.length) {
+          if (prev < deployment.logs.length) {
             return prev + 1;
           }
           clearInterval(interval);
@@ -31,26 +39,53 @@ export default function DeploymentLogConsole({
       }, 350); // Speed of simulated compilation logs
       return () => clearInterval(interval);
     } else {
-      setVisibleLogsCount(logs.length);
+      setVisibleLogsCount(deployment.logs.length);
     }
-  }, [logs, isBuilding]);
+  }, [deployment.logs, isBuilding]);
 
   // Scroll to bottom on updates
   useEffect(() => {
     consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleLogsCount]);
 
-  const activeLogs = logs.slice(0, visibleLogsCount);
+  const activeLogs = deployment.logs.slice(0, visibleLogsCount);
   const filteredLogs = activeLogs.filter((line) =>
     line.toLowerCase().includes(filterText.toLowerCase())
   );
+
+  const deploymentDate = new Date(deployment.timestamp).toLocaleDateString();
+  const deploymentTime = new Date(deployment.timestamp).toLocaleTimeString();
+
+  const getStatusIcon = (status: Deployment["status"]) => {
+    switch (status) {
+      case "SUCCESS":
+        return <CheckCircle className="h-4 w-4 text-emerald-400" />;
+      case "FAILED":
+        return <XCircle className="h-4 w-4 text-rose-400" />;
+      case "BUILDING":
+      default:
+        return <Terminal className="h-4 w-4 text-purple-400" />;
+    }
+  };
+
+  const getStatusTextClass = (status: Deployment["status"]) => {
+    switch (status) {
+      case "SUCCESS":
+        return "text-emerald-400";
+      case "FAILED":
+        return "text-rose-400";
+      case "BUILDING":
+      default:
+        return "text-purple-400";
+    }
+  };
 
   return (
     <div className="bg-black rounded-lg border border-neutral-800 shadow-xl overflow-hidden flex flex-col h-[400px]">
       {/* Console Header */}
       <div className="bg-neutral-900 px-4 py-3 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 font-mono text-neutral-300">
-          <Terminal className="h-4 w-4 text-purple-400" />
+          {getStatusIcon(deployment.status)}
           <span>Vortex Compiler Console v2.0.1</span>
           {isBuilding && (
             <span className="flex h-1.5 w-1.5 relative">
@@ -58,6 +93,13 @@ export default function DeploymentLogConsole({
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
             </span>
           )}
+          <span className="ml-2 px-2 py-1 rounded-full bg-neutral-800 text-neutral-400 flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{deploymentDate} {deploymentTime}</span>
+          </span>
+          <span className={`px-2 py-1 rounded-full ${getStatusTextClass(deployment.status)} border ${getStatusTextClass(deployment.status).replace('text-', 'border-')} font-medium`}>
+            {deployment.status}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -108,7 +150,7 @@ export default function DeploymentLogConsole({
           );
         })}
 
-        {isBuilding && visibleLogsCount < logs.length && (
+        {isBuilding && visibleLogsCount < deployment.logs.length && (
           <div className="flex items-center gap-2 text-indigo-400 text-xs py-1 animate-pulse">
             <span className="h-1 w-2.5 bg-indigo-400 inline-block animate-bounce"></span>
             <span>Bundling chunks and mapping routing table boundaries...</span>
@@ -133,7 +175,7 @@ export default function DeploymentLogConsole({
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block"></span>
             US-East-1 Edge: ACTIVE
           </span>
-          <span>Status: {isBuilding ? "COMPILING" : "IDLE"}</span>
+          <span>Status: {isBuilding ? "COMPILING" : deployment.status}</span>
         </div>
       </div>
     </div>

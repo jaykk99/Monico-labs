@@ -29,6 +29,17 @@
         { "name": "type", "type": "string" },
         { "name": "data", "type": "map" }
       ]
+    },
+    {
+      "name": "deployments",
+      "description": "History of project deployments.",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "projectId", "type": "string" },
+        { "name": "timestamp", "type": "timestamp" },
+        { "name": "status", "type": "string", "description": "BUILDING, SUCCESS, or FAILED" },
+        { "name": "logs", "type": "array", "items": { "type": "string" } }
+      ]
     }
   ]
 }
