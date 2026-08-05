@@ -1,15 +1,18 @@
+```tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Terminal, Search, Trash2, ArrowDownCircle } from "lucide-react";
 
 interface DeploymentLogConsoleProps {
   logs: string[];
   isBuilding: boolean;
+  deploymentStatus: string;
   onClear?: () => void;
 }
 
 export default function DeploymentLogConsole({
   logs,
   isBuilding,
+  deploymentStatus,
   onClear,
 }: DeploymentLogConsoleProps) {
   const [filterText, setFilterText] = useState("");
@@ -129,13 +132,24 @@ export default function DeploymentLogConsole({
       <div className="bg-neutral-950 px-4 py-2 border-t border-neutral-900 flex justify-between items-center text-[10px] text-neutral-500 font-mono select-none">
         <div>Filtered: {filteredLogs.length} / {activeLogs.length} lines</div>
         <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block"></span>
-            US-East-1 Edge: ACTIVE
-          </span>
+          <DeploymentStatus status={deploymentStatus} />
           <span>Status: {isBuilding ? "COMPILING" : "IDLE"}</span>
         </div>
       </div>
     </div>
   );
 }
+
+interface DeploymentStatusProps {
+  status: string;
+}
+
+function DeploymentStatus({ status }: DeploymentStatusProps) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block"></span>
+      {status}
+    </div>
+  );
+}
+```
