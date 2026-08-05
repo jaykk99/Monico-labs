@@ -1,6 +1,7 @@
+```typescript
 import React, { useState, useEffect } from "react";
 import { Play, Terminal, Database, Code, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Layers } from "lucide-react";
-import { ServerlessFunction, FunctionExecutionLog } from "../types";
+import { ServerlessFunction, FunctionExecutionLog } from "../types/ServerlessFunction";
 
 interface ServerlessPlaygroundProps {
   projectId: string;
@@ -9,6 +10,8 @@ interface ServerlessPlaygroundProps {
 export default function ServerlessPlayground({ projectId }: ServerlessPlaygroundProps) {
   const [functions, setFunctions] = useState<ServerlessFunction[]>([]);
   const [selectedFunc, setSelectedFunc] = useState<ServerlessFunction | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [versions, setVersions] = useState<ServerlessFunction[]>([]);
   
   // Playground State
   const [requestBodyText, setRequestBodyText] = useState("");
@@ -22,6 +25,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
   const [newFuncRoute, setNewFuncRoute] = useState("");
   const [newFuncCode, setNewFuncCode] = useState("");
   const [newFuncDesc, setNewFuncDesc] = useState("");
+  const [newVersion, setNewVersion] = useState("");
 
   // Fetch functions for project
   useEffect(() => {
@@ -34,6 +38,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         setFunctions(data);
         if (data.length > 0) {
           setSelectedFunc(data[0]);
+          fetchVersions(data[0].id);
         } else {
           setSelectedFunc(null);
         }
@@ -41,13 +46,27 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       .catch((err) => console.error("Error fetching functions", err));
   }, [projectId]);
 
+  const fetchVersions = (funcId: string) => {
+    fetch(`/api/functions/versions/${funcId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setVersions(data);
+        if (data.length > 0) {
+          setSelectedVersion(data[0].version);
+        } else {
+          setSelectedVersion(null);
+        }
+      })
+      .catch((err) => console.error("Error fetching versions", err));
+  };
+
   // Handle selected function change to preset request bodies
   useEffect(() => {
     if (selectedFunc) {
       if (selectedFunc.name === "analyze-sentiment.ts") {
-        setRequestBodyText(JSON.stringify({ text: "This Vortex cloud deployment portal is absolutely breathtaking! The layouts are so fluid." }, null, 2));
+        setRequestBodyText(`{ "text": "This Vortex cloud deployment portal is absolutely breathtaking! The layouts are so fluid." }`);
       } else {
-        setRequestBodyText(JSON.stringify({ userId: 104, fetchDetails: true }, null, 2));
+        setRequestBodyText(`{ "userId": 104, "fetchDetails": true }`);
       }
       setExecResult(null);
       fetchExecLogs(selectedFunc.id);
@@ -62,7 +81,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
   };
 
   const handleRunFunction = async () => {
-    if (!selectedFunc) return;
+    if (!selectedFunc || !selectedVersion) return;
 
     setIsLoading(true);
     setExecResult(null);
@@ -80,6 +99,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           functionId: selectedFunc.id,
+          version: selectedVersion,
           reqBody: parsedBody,
           reqQuery: {},
         }),
@@ -109,17 +129,20 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
           code: newFuncCode || `export default async function handler(req: Request) {\n  return Response.json({ success: true });\n}`,
           route: routeVal,
           description: newFuncDesc || "Custom serverless route endpoint",
+          version: newVersion,
         }),
       });
 
       const data = await response.json();
       setFunctions((prev) => [...prev, data]);
       setSelectedFunc(data);
+      fetchVersions(data.id);
       setShowAddModal(false);
       setNewFuncName("");
       setNewFuncRoute("");
       setNewFuncCode("");
       setNewFuncDesc("");
+      setNewVersion("");
     } catch (err) {
       console.error("Failed to create code endpoint", err);
     }
@@ -160,12 +183,10 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold font-mono">{fn.name}</span>
-                  <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-1.5 py-0.5 rounded text-neutral-400 uppercase">
-                    Edge JS
-                  </span>
+                  <span className="text-[10px] font-mono text-neutral-500 uppercase">{fn.route}</span>
                 </div>
-                <div className="text-[10px] font-mono text-neutral-500 truncate">{fn.route}</div>
-                <p className="text-[10px] text-neutral-400 line-clamp-2 leading-relaxed">{fn.description}</p>
+                <div className="text-[10px] font-mono text-neutral-500 truncate">{fn.description}</div>
+                <p className="text-[10px] text-neutral-400 line-clamp-2 leading-relaxed">{fn.version}</p>
               </button>
             );
           })}
@@ -258,14 +279,31 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
 
                 <div className="space-y-2">
                   <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
-                    Payload Arguments (JSON)
+                    Payload Arguments 
                   </label>
                   <textarea
                     value={requestBodyText}
                     onChange={(e) => setRequestBodyText(e.target.value)}
                     className="w-full h-28 bg-neutral-950 border border-[#2d2d2d] focus:border-purple-500 rounded-lg p-3 text-xs text-emerald-400 font-mono focus:outline-none focus:ring-1 focus:ring-purple-500 transition leading-snug resize-none"
-                    placeholder="{}"
+                    placeholder=""
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                    Version
+                  </label>
+                  <select
+                    value={selectedVersion}
+                    onChange={(e) => setSelectedVersion(e.target.value)}
+                    className="w-full h-8 bg-neutral-950 border border-[#2d2d2d] focus:border-purple-500 rounded-lg p-2 text-xs text-emerald-400 font-mono focus:outline-none focus:ring-1 focus:ring-purple-500 transition"
+                  >
+                    {versions.map((version) => (
+                      <option key={version.version} value={version.version}>
+                        {version.version}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <button
@@ -321,7 +359,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
                     {/* Returning JSON Payload */}
                     <div className="space-y-1">
                       <span className="block text-[9px] uppercase font-bold tracking-wider text-neutral-600 font-mono">
-                        RESPONSE PAYLOAD (JSON)
+                        RESPONSE PAYLOAD 
                       </span>
                       <pre className="text-[10.5px] text-emerald-400 font-mono max-h-[110px] overflow-auto bg-neutral-900 border border-neutral-850/60 p-2 rounded leading-snug select-all">
                         {execResult.responseBody}
@@ -417,6 +455,20 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                  Version
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="1.0.0"
+                  value={newVersion}
+                  onChange={(e) => setNewVersion(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+
               <button
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold py-2.5 rounded-lg transition-all shadow-md mt-2"
@@ -430,3 +482,5 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
     </div>
   );
 }
+
+```
