@@ -1,3 +1,4 @@
+```typescript
 import React, { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
@@ -10,7 +11,6 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  declare props: Props;
   public state: State = {
     hasError: false,
     errorMsg: ""
@@ -38,3 +38,4 @@ class ErrorBoundary extends Component<Props, State> {
 }
 
 export default ErrorBoundary;
+```
