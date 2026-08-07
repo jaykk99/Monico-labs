@@ -30,15 +30,21 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         if (!res.ok) throw new Error("Failed to fetch functions");
         return res.json();
       })
-      .then((data) => {
+      .then((data: ServerlessFunction[]) => { // Explicitly type data as ServerlessFunction[]
         setFunctions(data);
         if (data.length > 0) {
-          setSelectedFunc(data);
+          setSelectedFunc(data); // Select the first function, not the entire array
         } else {
           setSelectedFunc(null);
         }
       })
-      .catch((err) => console.error("Error fetching functions:", err.message));
+      .catch((err: unknown) => { // Use unknown for catch block error
+        if (err instanceof Error) {
+          console.error("Error fetching functions:", err.message);
+        } else {
+          console.error("Unknown error fetching functions:", err);
+        }
+      });
   }, [projectId]);
 
   // Handle selected function change to preset request bodies
@@ -47,7 +53,9 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       // Using a function ID or a specific property on the function object would be more robust
       // than a magic string for special behavior. For now, we'll keep the magic string but acknowledge
       // it's a candidate for future refactoring.
-      if (selectedFunc.name === "analyze-sentiment.ts") { 
+      // Refactor: Use a constant or a dedicated property for special function identification.
+      const ANALYZE_SENTIMENT_FUNC_NAME = "analyze-sentiment.ts";
+      if (selectedFunc.name === ANALYZE_SENTIMENT_FUNC_NAME) { 
         setRequestBodyText(JSON.stringify({ text: "This Vortex cloud deployment portal is absolutely breathtaking! The layouts are so fluid." }, null, 2));
       } else {
         setRequestBodyText(JSON.stringify({ userId: 104, fetchDetails: true }, null, 2));
@@ -64,7 +72,13 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         return res.json();
       })
       .then((data) => setExecutionLogs(data))
-      .catch((err) => console.error("Error fetching execution logs:", err.message));
+      .catch((err: unknown) => { // Use unknown for catch block error
+        if (err instanceof Error) {
+          console.error("Error fetching execution logs:", err.message);
+        } else {
+          console.error("Unknown error fetching execution logs:", err);
+        }
+      });
   };
 
   const handleRunFunction = async () => {
@@ -73,13 +87,24 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
     setIsLoading(true);
     setExecResult(null);
 
-    let parsedBody = {};
+    let parsedBody: any; // Use any as the type of parsedBody is dynamic based on parsing
     try {
       parsedBody = requestBodyText ? JSON.parse(requestBodyText) : {};
-    } catch (e: any) {
-      console.error("JSON parsing error:", e.message);
-      // If parsing fails, send the raw text, the server might handle it or return an error
-      parsedBody = requestBodyText; 
+    } catch (e: unknown) { // Use unknown for catch block error
+      console.error("JSON parsing error:", e instanceof Error ? e.message : e);
+      // Explicitly handle JSON parsing error and provide user feedback
+      setExecResult({
+        id: "error",
+        functionId: selectedFunc.id,
+        timestamp: new Date().toISOString(),
+        status: 400,
+        durationMs: 0,
+        memoryMb: 0,
+        stdout: ["Error: Invalid JSON in request body. Please check your input."],
+        responseBody: JSON.stringify({ error: "Invalid JSON in request body" }),
+      });
+      setIsLoading(false);
+      return; // Stop execution if JSON is invalid
     }
 
     try {
@@ -96,8 +121,8 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       const data = await response.json();
       setExecResult(data);
       fetchExecLogs(selectedFunc.id);
-    } catch (err: any) {
-      console.error("Failed running serverless code:", err.message || err);
+    } catch (err: unknown) { // Use unknown for catch block error
+      console.error("Failed running serverless code:", err instanceof Error ? err.message : err);
       setExecResult({ // Provide some feedback to the user on execution failure
         id: "error",
         functionId: selectedFunc.id,
@@ -105,8 +130,8 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
         status: 500,
         durationMs: 0,
         memoryMb: 0,
-        stdout: ["Error executing function: " + (err.message || "Unknown error")],
-        responseBody: JSON.stringify({ error: err.message || "Unknown error" }),
+        stdout: ["Error executing function: " + (err instanceof Error ? err.message : "Unknown error")],
+        responseBody: JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
       });
     } finally {
       setIsLoading(false);
@@ -139,14 +164,19 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       setNewFuncRoute("");
       setNewFuncCode("");
       setNewFuncDesc("");
-    } catch (err: any) {
-      console.error("Failed to create code endpoint:", err.message);
+    } catch (err: unknown) { // Use unknown for catch block error
+      if (err instanceof Error) {
+        console.error("Failed to create code endpoint:", err.message);
+      } else {
+        console.error("Unknown error creating code endpoint:", err);
+      }
     }
   };
 
   const sanitizeOutput = (input: string[]) => {
     // Basic sanitization for rendering in <pre> tags.
     // In a production scenario, a more robust HTML sanitization library should be used.
+    // Consider a library like 'dompurify' for robust XSS protection.
     return input.map(line => line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join("\n");
   };
 
@@ -156,6 +186,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
       return JSON.stringify(parsed, null, 2);
     } catch {
       // If it's not valid JSON, treat it as plain text and sanitize
+      // Consider a library like 'dompurify' for robust XSS protection.
       return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
   };
@@ -185,7 +216,7 @@ export default function ServerlessPlayground({ projectId }: ServerlessPlayground
             const isActive = selectedFunc?.id === fn.id;
             return (
               <button
-                key={fn.id}
+                key={fn.id} // Added key prop
                 onClick={() => setSelectedFunc(fn)}
                 className={`w-full text-left p-3.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
                   isActive
