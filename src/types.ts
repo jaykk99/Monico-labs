@@ -135,7 +135,7 @@ export interface ApiKey {
   secret: string;
   createdAt: string;
   rateLimit: number;
-  description: string;
+  description: string
 }
 
 export interface ComposioConnector {
@@ -143,3 +143,4 @@ export interface ComposioConnector {
   name: string;
   category: string;
   description: string
+}
