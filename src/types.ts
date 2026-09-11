@@ -19,7 +19,7 @@ export interface Project {
 export interface Deployment {
   id: string;
   projectId: string;
-  status: 'building' | 'ready' | 'failed' | 'BUILDING' | 'SUCCESS' | 'FAILED'; // Added inconsistent statuses to match DeploymentLogConsole.tsx, ideally this would be unified to 'building' | 'ready' | 'failed'
+  status: 'building' | 'ready' | 'failed'; // Added inconsistent statuses to match DeploymentLogConsole.tsx, ideally this would be unified to 'building' | 'ready' | 'failed'
   previewUrl: string;
   createdAt: string;
   commitMessage: string;
