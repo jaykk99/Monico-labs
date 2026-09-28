@@ -17,7 +17,7 @@ Copy `.env.example` to `.env` and set these before running the server:
 | `VORTEX_LIVE_API_KEY` | — | Live API key for outbound integrations. |
 | `SUPABASE_URL` | — | *(Optional)* Your Supabase project URL. When set alongside `SUPABASE_SERVICE_ROLE_KEY`, the `query_database` MCP tool will delegate SQL to Supabase first (requires an `execute_sql` stored function in your Supabase project). If unset, queries run against the local `vortex_local_db.json` file database. |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | *(Optional)* Supabase service-role key. Pair with `SUPABASE_URL` to enable Supabase SQL delegation. |
-| `VRX_MCP_AUTH_TOKEN` | `vrx_agent_sk_live_999` | Bearer token agents must supply in the `Authorization` header to access MCP endpoints. Override in `.env` to set your own secret. |
+| `VRX_MCP_AUTH_TOKEN` | *(generated at startup)* | Bearer token agents must supply in the `Authorization` header to access MCP endpoints. If unset (and `VORTEX_LIVE_API_KEY` is also unset), the server generates a random token on each boot and prints it to the console. Set `VRX_MCP_AUTH_TOKEN` in `.env` for a stable token. |
 
 > **Connection strings** (Redis, MongoDB, PostgreSQL) are also derived from `VORTEX_HOST`, so a single env var change redirects all services at once.
 
@@ -37,7 +37,7 @@ Vortex exposes its MCP capabilities over **Server-Sent Events (SSE)**. AI agents
   *(Alternatively, use the header `x-api-key: <token>` or query parameter `?key=<token>`)*
 
 **Default values** (when running locally without env overrides):
-- Host: `localhost`, Port: `3000`, Token: `vrx_agent_sk_live_999`
+- Host: `localhost`, Port: `3000`, Token: printed in the server console on startup (or your `VRX_MCP_AUTH_TOKEN`)
 
 ### 2. SSE Connection Flow
 1. Open an EventSource connection to `GET http://<VORTEX_HOST>:<VORTEX_PORT>/api/mcp/sse`.
@@ -278,7 +278,7 @@ AI Agents can also deploy directly using standard HTTP webhooks without initiati
 
 ```bash
 # Replace <VORTEX_HOST>, <VORTEX_PORT>, and <TOKEN> with your values
-# Defaults: localhost, 3000, vrx_agent_sk_live_999
+# Defaults: localhost, 3000; token is printed in the server console on startup
 curl -X POST http://<VORTEX_HOST>:<VORTEX_PORT>/api/vortex/agent/deploy \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <TOKEN>" \

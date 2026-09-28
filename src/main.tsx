@@ -4,12 +4,20 @@ import App from './App.tsx';
 import ErrorBoundary from './ErrorBoundary.tsx';
 import './index.css';
 
+interface MockDeployment {
+  id: string;
+  projectId: string;
+  timestamp: string;
+  status: 'SUCCESS' | 'FAILED' | 'BUILDING';
+  logs: string[];
+}
+
 // Mock API for fetching deployments
 // In a real application, this would interact with Firebase or a backend API.
-export const fetchDeployments = async (projectId: string): Promise<Deployment[]> => {
+export const fetchDeployments = async (projectId: string): Promise<MockDeployment[]> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const mockDeployments: Deployment[] = [
+      const mockDeployments: MockDeployment[] = [
         {
           id: "dep-001",
           projectId: projectId,

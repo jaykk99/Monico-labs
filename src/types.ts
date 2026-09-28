@@ -142,5 +142,19 @@ export interface ComposioConnector {
   id: string;
   name: string;
   category: string;
-  description: string
+  description: string;
+  isConnected?: boolean;
+  scopesCount?: number;
+}
+
+export interface WorkspaceMember {
+  email: string;
+  role: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  owner: string;
+  members: WorkspaceMember[];
 }

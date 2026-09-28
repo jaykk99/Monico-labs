@@ -21,7 +21,7 @@ services:
         sync: false
       # Agent live-deploy key
       - key: VORTEX_LIVE_API_KEY
-        value: vrx_agent_sk_live_
+        sync: false
       # Optional: Postgres for real database tools
       - key: VORTEX_DATABASE_URL
         sync: false

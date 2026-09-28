@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "declaration": false,
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": false,
+    "types": [
+      "node"
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "extends": "./tsconfig.json",
+  "include": [
+    "server.ts",
+    "src/types.ts",
+    "src/types/**/*"
+  ]
+}

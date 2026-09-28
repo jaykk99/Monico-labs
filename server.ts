@@ -45,6 +45,15 @@ if (firestoreCredentialsPresent) {
 // All tables live in a dedicated "vortex" schema, namespaced per vortex projectId
 // so multiple projects can share one Postgres instance safely.
 import { Pool as PgPool } from "pg";
+import crypto from "crypto";
+
+// Keyless-first auth: when no VRX_MCP_AUTH_TOKEN / VORTEX_LIVE_API_KEY is configured,
+// generate a random bearer token at startup and print it, instead of shipping a
+// hardcoded default credential. Set VRX_MCP_AUTH_TOKEN in .env for a stable token.
+const generatedMcpToken = crypto.randomBytes(24).toString("hex");
+if (!process.env.VRX_MCP_AUTH_TOKEN && !process.env.VORTEX_LIVE_API_KEY) {
+  console.log("[vortex-auth] No VRX_MCP_AUTH_TOKEN or VORTEX_LIVE_API_KEY set; generated ephemeral MCP bearer token: " + generatedMcpToken);
+}
 
 const vortexPgPool: PgPool | null = process.env.VORTEX_DATABASE_URL
   ? new PgPool({ connectionString: process.env.VORTEX_DATABASE_URL, max: 5, ssl: { rejectUnauthorized: false } })
@@ -3423,7 +3432,6 @@ mcpServer.tool("scale_service", "Change the replica count, CPU allocations, or R
    const ready = deployments.filter(d => d.projectId === projectId && d.status === "ready").length;
    return { content: [{ type: "text", text: `Scaled project "${prj.name}" to ${replicas} replica(s). ${ready} active deployment(s) affected. Autoscaling ceiling: ${autoScalingConfigs[projectId]}.` }] };
 });
-});
 
 mcpServer.tool("configure_autoscaling", "Define rules to scale up or down based on CPU/RAM thresholds.", { projectId: z.string(), maxReplicas: z.number() }, async ({ projectId, maxReplicas }) => {
    autoScalingConfigs[projectId] = maxReplicas;
@@ -3674,9 +3682,7 @@ mcpServer.tool("clear_environment_resources", "De-provision all active sub-servi
    saveToCloudDB();
    logMcpAction(projectId, `De-provisioned environment "${environment}": ${removed.join(", ")}`);
    if (removed.length === 0) return { content: [{ type: "text", text: `No sub-services found to de-provision for environment "${environment}" in project "${prj.name}".` }] };
-   return { content: [{ type: "text", text: `De-provisioned ${removed.length} resource group(s) for environment "${environment}" in project "${prj.name}":
-- ${removed.join("
-- ")}` }] };
+   return { content: [{ type: "text", text: `De-provisioned ${removed.length} resource group(s) for environment "${environment}" in project "${prj.name}":\n- ${removed.join("\n- ")}` }] };
 });
 
 // Added missing tools
@@ -3698,11 +3704,11 @@ mcpServer.tool("run_local_lint", "Run static analysis (e.g., ESLint, Ruff) over 
        const warnings = lines.filter(l => l.toLowerCase().includes("warning"));
        logMcpAction(projectId, `Lint run: ${passed ? "passed" : `${errors.length} error(s)`}`);
        if (passed || errors.length === 0) {
-           return { content: [{ type: "text", text: `TypeScript lint passed for project "${prj.name}". No type errors detected.${warnings.length > 0 ? \` (${warnings.length} warning(s))\` : ""}` }] };
+           return { content: [{ type: "text", text: `TypeScript lint passed for project "${prj.name}". No type errors detected.${warnings.length > 0 ? ` (${warnings.length} warning(s))` : ""}` }] };
        }
-       return { content: [{ type: "text", text: \`TypeScript lint found \${errors.length} error(s) in project "\${prj.name}":\n\${errors.slice(0, 10).join("\n")}\${errors.length > 10 ? \`\n...and \${errors.length - 10} more.\` : ""}\` }] };
+       return { content: [{ type: "text", text: `TypeScript lint found ${errors.length} error(s) in project "${prj.name}":\n${errors.slice(0, 10).join("\n")}${errors.length > 10 ? `\n...and ${errors.length - 10} more.` : ""}` }] };
    } catch (e: any) {
-       return { content: [{ type: "text", text: \`Lint runner error: \${e.message}\` }] };
+       return { content: [{ type: "text", text: `Lint runner error: ${e.message}` }] };
    }
 });
 
@@ -3713,8 +3719,8 @@ mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests a
    const testUrls: string[] = [];
    if (activeDep?.vercelUrl) testUrls.push(activeDep.vercelUrl);
    if (activeDep?.previewUrl && activeDep.previewUrl !== activeDep.vercelUrl) testUrls.push(activeDep.previewUrl);
-   const domains = (projectDomains[projectId] || []).filter(d => d.status === "active").map(d => `https://${d.domain}`);
-   testUrls.push(...domains);
+   const domainUrls = (domains[projectId] || []).map((d) => d.startsWith("http") ? d : `https://${d}`);
+   testUrls.push(...domainUrls);
    if (testUrls.length === 0) return { content: [{ type: "text", text: `No live URLs found for project "${prj.name}". Deploy first, then run E2E tests.` }] };
    const results: string[] = [];
    for (const url of testUrls.slice(0, 3)) {
@@ -3725,14 +3731,14 @@ mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests a
            const r = await fetch(url, { signal: controller.signal });
            clearTimeout(t);
            const ms = Date.now() - start;
-           results.push(\`\${r.ok ? "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"} \${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ HTTP \${r.status} in \${ms}ms\`);
+           results.push(`${r.ok ? "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"} ${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ HTTP ${r.status} in ${ms}ms`);
        } catch (e: any) {
-           results.push(\`ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ \${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ \${e.message}\`);
+           results.push(`ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ${e.message}`);
        }
    }
    const passed = results.filter(r => r.startsWith("ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ")).length;
-   logMcpAction(projectId, \`E2E health checks: \${passed}/\${results.length} passed\`);
-   return { content: [{ type: "text", text: \`E2E smoke tests for project "\${prj.name}": \${passed}/\${results.length} passed\n\${results.join("\n")}\` }] };
+   logMcpAction(projectId, `E2E health checks: ${passed}/${results.length} passed`);
+   return { content: [{ type: "text", text: `E2E smoke tests for project "${prj.name}": ${passed}/${results.length} passed\n${results.join("\n")}` }] };
 });
 
 mcpServer.tool("list_environments", "Get a full inventory of available environments (e.g., Development, Staging, Production) for a specific app.", { projectId: z.string() }, async ({ projectId }) => {
@@ -4505,8 +4511,7 @@ mcpServer.tool(
       `- **${k}** (${p.steps.length} steps) Ã¢ÂÂ ${p.successCount} successes / ${p.failureCount} failures Ã¢ÂÂ last updated ${p.updatedAt?.substring(0,10) || "?"}
   URL: ${p.url}
   Notes: ${p.notes}`
-    ).join("
-");
+    ).join("\n");
     return { content: [{ type: "text", text: `Saved browser playbooks (${filtered.length}):
 ${rows}` }] };
   }
@@ -4592,7 +4597,7 @@ const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: ex
    // Enforce the documented MCP bearer token (VRX_MCP_AUTH_TOKEN, falling back to the
    // shared VORTEX_LIVE_API_KEY default) via Authorization header, x-api-key/api-key
    // header, or ?key= query param ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ matches the auth contract documented in README.md.
-   const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || "jayisthegoat";
+   const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || generatedMcpToken;
    const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
 
    const isValid = !!authHeader && String(authHeader).includes(configuredKey);
@@ -4986,7 +4991,7 @@ User Request: ${prompt}` }] }
              ) || { name: fn.name };
 
              if (usingLocalTools) {
-               const result = await mcpServer.callTool({ name: originalTool.name, arguments: args });
+               const result = await (mcpServer as any).callTool({ name: originalTool.name, arguments: args });
                resultVal = result;
              } else {
                const rpcResult = await composioMcpRpc("tools/call", { name: originalTool.name, arguments: args });

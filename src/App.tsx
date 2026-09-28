@@ -1,18 +1,7 @@
-```tsx
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
 import BlueprintEditor from './BlueprintEditor';
-import './index.css';
 
 function App() {
-  return (
-    <StrictMode>
-      <BlueprintEditor />
-    </StrictMode>
-  );
+  return <BlueprintEditor />;
 }
 
 export default App;
-```
-
---- End of changes ---
