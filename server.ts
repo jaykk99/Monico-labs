@@ -1988,6 +1988,7 @@ app.post("/api/projects/:projectId/database/tables", (req, res) => {
   };
   
   databaseTables[projectId].push(newTable);
+  saveToCloudDB();
   res.json(newTable);
 });
 
@@ -1995,6 +1996,7 @@ app.delete("/api/projects/:projectId/database/tables/:tableName", (req, res) => 
   const { projectId, tableName } = req.params;
   if (databaseTables[projectId]) {
     databaseTables[projectId] = databaseTables[projectId].filter(t => t.name !== tableName);
+    saveToCloudDB();
   }
   res.json({ success: true, tables: databaseTables[projectId] || [] });
 });
@@ -2069,12 +2071,22 @@ function coerceValueForColumn(raw: string, col: any): any {
 }
 
 // Interactive SQL & Query executor (REAL ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no fabricated results)
-app.post("/api/projects/:projectId/database/query", (req, res) => {
-  const { projectId } = req.params;
-  const { sql } = req.body;
+// ----------------------------------------------------------------------------
+// Shared local JSON database engine: the same implementation backs the REST
+// /database/query endpoint AND the MCP query_database tool when no Postgres
+// (VORTEX_DATABASE_URL) is configured. Mutations must call saveToCloudDB().
+// ----------------------------------------------------------------------------
+function ensureLocalTables(projectId: string): DbTable[] {
+  if (!databaseTables[projectId]) {
+    databaseTables[projectId] = [];
+  }
+  return databaseTables[projectId];
+}
+
+function localDbQuery(projectId: string, sql: unknown): { status: number; body: any } {
 
   if (!sql || typeof sql !== "string") {
-    return res.status(400).json({ error: "Missing SQL string parameter value." });
+    return { status: 400, body: ({ error: "Missing SQL string parameter value." }) };
   }
 
   const rawSql = sql.trim();
@@ -2091,11 +2103,11 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
   if (queryTrimmed.startsWith("select")) {
     const foundTable = findTable();
     if (!foundTable) {
-      return res.json({
+      return { status: 200, body: ({
         success: false,
         error: `Table not found in query. Available tables: ${tables.map(t => t.name).join(", ") || "(none)"}`,
         rows: []
-      });
+      }) };
     }
 
     let rows = foundTable.rows;
@@ -2112,20 +2124,20 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
       rows = rows.slice(0, parseInt(limitMatch[1], 10));
     }
 
-    return res.json({
+    return { status: 200, body: ({
       success: true,
       command: "SELECT",
       fields: foundTable.columns.map(c => c.name),
       rowCount: rows.length,
       rows
-    });
+    }) };
   }
 
   if (queryTrimmed.startsWith("insert")) {
     // INSERT INTO table (col1, col2) VALUES (val1, val2)
     const foundTable = findTable();
     if (!foundTable) {
-      return res.status(400).json({ error: "Target table not found." });
+      return { status: 400, body: ({ error: "Target table not found." }) };
     }
 
     const insertMatch = rawSql.match(/insert\s+into\s+[a-zA-Z0-9_]+\s*\(([^)]*)\)\s*values\s*\(([^)]*)\)/i);
@@ -2158,25 +2170,25 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
     });
 
     foundTable.rows.push(newRow);
-    return res.json({
+    return { status: 200, body: ({
       success: true,
       command: "INSERT",
       rowCount: 1,
       rows: [newRow],
       message: `Successfully executed: 1 row inserted into ${foundTable.name}.`
-    });
+    }) };
   }
 
   if (queryTrimmed.startsWith("update")) {
     // UPDATE table SET col1 = val1, col2 = val2 WHERE ...
     const foundTable = findTable();
     if (!foundTable) {
-      return res.status(400).json({ error: "Target table not found." });
+      return { status: 400, body: ({ error: "Target table not found." }) };
     }
 
     const setMatch = rawSql.match(/set\s+(.+?)\s+where\s+(.+)$/i) || rawSql.match(/set\s+(.+)$/i);
     if (!setMatch) {
-      return res.status(400).json({ error: "Malformed UPDATE statement ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ missing SET clause." });
+      return { status: 400, body: ({ error: "Malformed UPDATE statement ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ missing SET clause." }) };
     }
     const setClause = setMatch[1];
     const whereClause = setMatch[2];
@@ -2199,20 +2211,20 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
       updatedCount++;
     });
 
-    return res.json({
+    return { status: 200, body: ({
       success: true,
       command: "UPDATE",
       rowCount: updatedCount,
       rows: foundTable.rows,
       message: `Successfully executed: ${updatedCount} row(s) updated in ${foundTable.name}.`
-    });
+    }) };
   }
 
   if (queryTrimmed.startsWith("delete")) {
     // DELETE FROM table WHERE ...
     const foundTable = findTable();
     if (!foundTable) {
-      return res.status(400).json({ error: "Target table not found." });
+      return { status: 400, body: ({ error: "Target table not found." }) };
     }
 
     const whereMatch = rawSql.match(/where\s+(.+)$/i);
@@ -2225,20 +2237,59 @@ app.post("/api/projects/:projectId/database/query", (req, res) => {
     }
     const deletedCount = before - foundTable.rows.length;
 
-    return res.json({
+    return { status: 200, body: ({
       success: true,
       command: "DELETE",
       rowCount: deletedCount,
       rows: [],
       message: `Successfully executed: ${deletedCount} row(s) deleted from ${foundTable.name}.`
-    });
+    }) };
   }
 
-  return res.status(400).json({
+  return { status: 400, body: ({
     success: false,
     error: "Unsupported SQL statement. Supported: SELECT, INSERT, UPDATE, DELETE.",
     rows: []
-  });
+  }) };
+}
+
+// ----------------------------------------------------------------------------
+// Optional Supabase delegation for query_database (documented in README.md):
+// when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set, SQL is executed via the
+// `execute_sql` RPC function in the user's Supabase project. Otherwise the local
+// JSON engine is used. Never fabricates results: without any database configured
+// the caller gets the local engine, and Supabase errors are reported verbatim.
+// ----------------------------------------------------------------------------
+async function supabaseExecuteSql(sql: string): Promise<{ ok: boolean; rows?: any[]; error?: string }> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return { ok: false, error: "not-configured" };
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/rest/v1/rpc/execute_sql`, {
+      method: "POST",
+      headers: {
+        "apikey": key,
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: sql }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      return { ok: false, error: `Supabase execute_sql failed (HTTP ${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true, rows: JSON.parse(text) };
+  } catch (err: any) {
+    return { ok: false, error: `Supabase request failed: ${err?.message || err}` };
+  }
+}
+
+app.post("/api/projects/:projectId/database/query", (req, res) => {
+  const { status, body } = localDbQuery(req.params.projectId, req.body?.sql);
+  if (status === 200 && body && body.success === true && body.command && body.command !== "SELECT") {
+    saveToCloudDB();
+  }
+  return res.status(status).json(body);
 });
 
 app.post("/api/projects/:projectId/database/tables/:tableName/record", (req, res) => {
@@ -2266,6 +2317,7 @@ app.post("/api/projects/:projectId/database/tables/:tableName/record", (req, res
   });
 
   foundTable.rows.push(completeRecord);
+  saveToCloudDB();
   res.json(completeRecord);
 });
 
@@ -2279,6 +2331,7 @@ app.delete("/api/projects/:projectId/database/tables/:tableName/record/:rowId", 
 
   const pkCol = foundTable.columns.find(c => c.isPrimaryKey)?.name || "id";
   foundTable.rows = foundTable.rows.filter(r => String(r[pkCol]) !== rowId);
+  saveToCloudDB();
   res.json({ success: true, rowId });
 });
 
@@ -2509,7 +2562,7 @@ mcpServer.tool("deploy_project", "Deploys a project to a REAL, publicly reachabl
 
    const vercelResult = await vortexVercelDeploy(prj, deployedHtml);
    if (!vercelResult.ok) {
-     return { content: [{ type: "text", text: `Error: Real deployment failed ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${vercelResult.error}` }] };
+     return { content: [{ type: "text", text: `Error: Real deployment failed: ${vercelResult.error}` }] };
    }
 
    const newDep: Deployment = {
@@ -2524,7 +2577,7 @@ mcpServer.tool("deploy_project", "Deploys a project to a REAL, publicly reachabl
        "[vortex-agent] Authenticated via MCP Protocol JSON-RPC.",
        "[vortex-agent] Uploading build to real Vercel deployment API.",
        `[vortex-agent] Vercel deployment id: ${vercelResult.deploymentId}`,
-       `[vortex-agent] Deployment successful! Live at ${vercelResult.url} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`
+       `[vortex-agent] Deployment successful! Live at ${vercelResult.url}`
      ],
      deployedHtml,
      vercelDeploymentId: vercelResult.deploymentId,
@@ -2583,12 +2636,26 @@ mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
    };
 });
 
-mcpServer.tool("query_database", "Runs a real SQL query against the project's Postgres tables (schema: vortex). Reference tables by the logical name you used in create_database_table ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ it's resolved to the real physical table automatically for simple single-table queries; for custom SQL, query vortex.\"t_<projectId>_<tableName>\" directly.", {
+mcpServer.tool("query_database", "Runs a real SQL query against the project's database tables. Priority: VORTEX_DATABASE_URL -> real Postgres; else SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY -> Supabase execute_sql RPC (schema: vortex; reference tables by the logical name from create_database_table, auto-resolved to the physical table; for custom SQL query vortex.\"t_<projectId>_<tableName>\" directly). Otherwise it runs against the built-in local JSON database engine (SELECT/INSERT/UPDATE/DELETE).", {
   projectId: z.string(),
   sql: z.string()
 }, async ({ projectId, sql }) => {
   if (!vortexPgPool) {
-    return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed queries." }] };
+    // Optional Supabase delegation (README-documented): SUPABASE_URL +
+    // SUPABASE_SERVICE_ROLE_KEY run the SQL via the project's execute_sql RPC.
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const delegated = await supabaseExecuteSql(sql);
+      if (delegated.ok) {
+        return { content: [{ type: "text", text: JSON.stringify({ result: delegated.rows, rowCount: delegated.rows?.length ?? 0, source: "supabase" }, null, 2) }] };
+      }
+      return { content: [{ type: "text", text: `Supabase error: ${delegated.error}` }] };
+    }
+    // Keyless fallback: run against the built-in local JSON database engine.
+    const { status, body } = localDbQuery(projectId, sql);
+    if (status === 200 && body && body.success === true && body.command && body.command !== "SELECT") {
+      saveToCloudDB();
+    }
+    return { content: [{ type: "text", text: JSON.stringify({ ...body, source: "local-json", note: "No VORTEX_DATABASE_URL set; served from the built-in local database. Set VORTEX_DATABASE_URL for real Postgres." }, null, 2) }] };
   }
   await vortexEnsureRegistry();
 
@@ -2752,7 +2819,7 @@ mcpServer.tool("trigger_deployment", "Triggers a REAL redeployment for a project
 
    const vercelResult = await vortexVercelDeploy(prj, html);
    if (!vercelResult.ok) {
-     return { content: [{ type: "text", text: `Error: Real deployment failed ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${vercelResult.error}` }] };
+     return { content: [{ type: "text", text: `Error: Real deployment failed: ${vercelResult.error}` }] };
    }
 
    const newDep: Deployment = {
@@ -2921,9 +2988,10 @@ mcpServer.tool("delete_api_key", "Deletes an API Key.", { projectId: z.string(),
    return { content: [{ type: "text", text: `Deleted API key ${keyId}` }] };
 });
 
-mcpServer.tool("list_database_tables", "Lists real database tables backed by Postgres for this project.", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_database_tables", "Lists database tables for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the built-in local JSON database).", { projectId: z.string() }, async ({ projectId }) => {
    if (!vortexPgPool) {
-     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+     const tables = ensureLocalTables(projectId);
+     return { content: [{ type: "text", text: JSON.stringify(tables.map(t => ({ table_name: t.name, columns: t.columns.map(c => c.name), rowCount: t.rows.length, source: "local-json" })), null, 2) }] };
    }
    await vortexEnsureRegistry();
    const res = await vortexPgPool.query(
@@ -2933,9 +3001,26 @@ mcpServer.tool("list_database_tables", "Lists real database tables backed by Pos
    return { content: [{ type: "text", text: JSON.stringify(res.rows, null, 2) }] };
 });
 
-mcpServer.tool("create_database_table", "Creates a real Postgres table for this project.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+mcpServer.tool("create_database_table", "Creates a database table for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the built-in local JSON database).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!vortexPgPool) {
-     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+     const tables = ensureLocalTables(projectId);
+     const existing = tables.find(t => t.name === name);
+     if (existing) {
+       return { content: [{ type: "text", text: `Table '${name}' already exists in the local database.` }] };
+     }
+     const newTable: DbTable = {
+       id: `tbl-${generateId()}`,
+       name,
+       columns: [
+         { name: "id", type: "uuid", isNullable: false, isPrimaryKey: true },
+         { name: "created_at", type: "timestamp", isNullable: false, isPrimaryKey: false }
+       ],
+       rows: []
+     };
+     tables.push(newTable);
+     saveToCloudDB();
+     logMcpAction(projectId, `Created local database table: ${name}`);
+     return { content: [{ type: "text", text: `Created table '${name}' in the built-in local JSON database (no VORTEX_DATABASE_URL set; set it for real Postgres).` }] };
    }
    await vortexEnsureRegistry();
    const physical = vortexPhysicalTableName(projectId, name);
@@ -2955,9 +3040,40 @@ mcpServer.tool("create_database_table", "Creates a real Postgres table for this 
    return { content: [{ type: "text", text: `Created real database table '${name}' (Postgres table vortex."${physical}")` }] };
 });
 
-mcpServer.tool("insert_database_record", "Inserts a record into a real Postgres table.", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
+mcpServer.tool("insert_database_record", "Inserts a record into a database table (real Postgres when VORTEX_DATABASE_URL is set, otherwise the built-in local JSON database).", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
    if (!vortexPgPool) {
-     return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real Postgres-backed tables." }] };
+     const tables = ensureLocalTables(projectId);
+     const foundTable = tables.find(t => t.name === tableName);
+     if (!foundTable) {
+       return { content: [{ type: "text", text: `Table '${tableName}' not found for project ${projectId} in the local database. Call create_database_table first.` }] };
+     }
+     let parsed: any;
+     try {
+       parsed = JSON.parse(data);
+     } catch {
+       return { content: [{ type: "text", text: "Error: 'data' must be a valid JSON string." }] };
+     }
+     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+       return { content: [{ type: "text", text: "Error: 'data' must be a JSON object." }] };
+     }
+     const completeRecord: Record<string, any> = { ...parsed };
+     foundTable.columns.forEach(c => {
+       if (completeRecord[c.name] === undefined || completeRecord[c.name] === "") {
+         if (c.isPrimaryKey) {
+           completeRecord[c.name] = c.type === "uuid" ? "rec-" + generateId() : Math.floor(Math.random() * 9999);
+         } else if ((c as any).defaultValue !== undefined) {
+           completeRecord[c.name] = (c as any).defaultValue;
+         } else if (c.type === "timestamp") {
+           completeRecord[c.name] = new Date().toISOString();
+         } else {
+           completeRecord[c.name] = null;
+         }
+       }
+     });
+     foundTable.rows.push(completeRecord);
+     saveToCloudDB();
+     logMcpAction(projectId, `Inserted record into local database table: ${tableName}`);
+     return { content: [{ type: "text", text: JSON.stringify({ inserted: completeRecord, table: tableName, source: "local-json" }, null, 2) }] };
    }
    await vortexEnsureRegistry();
    const reg = await vortexPgPool.query(
