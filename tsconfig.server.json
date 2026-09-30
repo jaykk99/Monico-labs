@@ -18,6 +18,8 @@
   "extends": "./tsconfig.json",
   "include": [
     "server.ts",
+    "vortex-sqlite.ts",
+    "vortex-ipfs.ts",
     "src/types.ts",
     "src/types/**/*"
   ]

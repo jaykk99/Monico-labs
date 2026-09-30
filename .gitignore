@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Monico self-contained runtime data (SQLite, IPFS repo)
+data/
+dist-electron/

@@ -1,9 +1,27 @@
+# Monico Labs — server image (SECONDARY artifact).
+#
+# The primary targets are the static web build (dist/, needs no server) and
+# the Electron desktop app. This image is for anyone who wants the full
+# backend (embedded SQLite, MCP server, Puppeteer automation, local preview
+# serving) on a machine or host of their own.
+#
+# Build:  docker build -t monico-labs .
+# Run:    docker run -d -p 3000:3000 -v monico-data:/data --name monico monico-labs
+#
+# The SQLite database lives at /data/vortex.db — the named volume is what
+# makes it survive container restarts. Without the volume, data is ephemeral.
+#
+# Optional env (all genuinely optional — zero-key boot is the default):
+#   -e VRX_MCP_AUTH_TOKEN=<stable token>  # default: generated per boot, printed in logs
+#   -e VORTEX_DATABASE_URL=<postgres>     # default: embedded SQLite at /data/vortex.db
+#   -e ENABLE_TUNNEL=true                 # default: off; exposes localhost via localtunnel
+#   -e GEMINI_API_KEY=...                 # default: unset; AI features degrade honestly
+
 FROM node:20-slim
 
-# Install Chromium and all deps needed for headless Chrome
+# System Chromium for Puppeteer automation (headless, no download at runtime).
 RUN apt-get update && apt-get install -y \
     chromium \
-    chromium-sandbox \
     libglib2.0-0 \
     libnss3 \
     libnspr4 \
@@ -20,30 +38,30 @@ RUN apt-get update && apt-get install -y \
     libgbm1 \
     libasound2 \
     fonts-liberation \
-    libappindicator3-1 \
     xdg-utils \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell puppeteer to skip downloading bundled Chrome — use system Chromium instead
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-# Puppeteer will try to find the executable in common locations.
-# If it's not found, it might still fall back to downloading.
-# Explicitly setting PUPPETEER_EXECUTABLE_PATH is generally safer if the path is known and stable.
-# For Debian-based systems, /usr/bin/chromium is typically correct for the 'chromium' package.
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-# Build the app
 COPY . .
 RUN npm run build
 
-# Cloud hosts inject PORT automatically
+# Cloud hosts inject PORT automatically; default to 3000.
+ENV NODE_ENV=production \
+    PORT=3000 \
+    VORTEX_HOST=0.0.0.0 \
+    VORTEX_DATA_DIR=/data
+
+# Persistent volume for the embedded SQLite database.
+VOLUME ["/data"]
+
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/server.cjs"]

@@ -1,4 +1,32 @@
-# 🌪️ Vortex Cloud Platform & MCP Server
+# Monico Labs
+
+> **What it is today:** a self-contained site builder and publisher that runs
+> with **zero backend, zero server, zero keys** — and scales up when you want it to.
+
+🌤 **Live Demo**: https://monico-labs.onrender.com
+
+## Three targets, one codebase
+
+1. **Static web build (primary web target)** — `vite build` → `dist/` is plain
+   HTML/CSS/JS with no backend dependency at all. Projects live in the
+   browser's IndexedDB; "Publish public" runs IPFS **in the page** via Helia.
+   Node-only features (Puppeteer, MCP server, SQLite) are honestly labelled
+   "desktop app only" — never crash, never fake. Details:
+   [`docs/static-web-build.md`](docs/static-web-build.md).
+2. **Electron desktop companion** — same UI, full power: embedded SQLite,
+   MCP over stdio/SSE, Puppeteer automation, all on loopback with no keys
+   required. Details: [`docs/desktop-build.md`](docs/desktop-build.md).
+3. **Docker server image (secondary)** — the full backend in one container
+   with a persistent `/data` volume. See `Dockerfile`.
+
+**Self-hosting loop:** build once, publish `dist/` to IPFS (or drop it in a
+Supabase Storage public bucket, free tier) — from then on the app deploys
+itself. Supabase can host the static files and optionally provide Postgres;
+it cannot run the backend (no Node/Docker/persistent processes there).
+
+---
+
+# 🌪️ Vortex Cloud Platform & MCP Server (legacy docs below)
 
 🌤 **Live Demo**: https://monico-labs.onrender.com
 
