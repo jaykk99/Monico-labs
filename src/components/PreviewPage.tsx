@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertTriangle, ArrowLeft, FlaskConical } from "lucide-react";
 import { emptyState } from "../lib/model";
 import type { Deployment } from "../lib/model";
 import { createIndexedDBStore, createMemoryStore, isIndexedDBAvailable } from "../lib/store";
@@ -34,33 +35,31 @@ export default function PreviewPage({ deploymentId }: { deploymentId: string }) 
     };
   }, [deploymentId]);
 
-  if (error) {
+  if (error || (dep && !dep.deployedHtml)) {
     return (
-      <div style={{ padding: 48, color: "#ffb3bd", fontFamily: "system-ui, sans-serif" }}>
-        <h1>Preview unavailable</h1>
-        <p>{error}</p>
-        <p>
-          <a href="#" style={{ color: "#7db4ff" }}>
-            ← Back to Monico Labs
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0d16] p-6">
+        <div className="max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
+          <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-amber-300" />
+          <h1 className="mb-2 text-xl font-bold text-white">Preview unavailable</h1>
+          <p className="mb-6 text-sm text-slate-400">{error ?? "This deployment has no stored HTML."}</p>
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to Monico Labs
           </a>
-        </p>
+        </div>
       </div>
     );
   }
 
   if (!dep) {
     return (
-      <div style={{ padding: 48, color: "#9aa4bd", fontFamily: "system-ui, sans-serif" }}>
-        Loading preview…
-      </div>
-    );
-  }
-
-  if (!dep.deployedHtml) {
-    return (
-      <div style={{ padding: 48, color: "#ffb3bd", fontFamily: "system-ui, sans-serif" }}>
-        <h1>Preview unavailable</h1>
-        <p>This deployment has no stored HTML.</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0d16]">
+        <div className="flex items-center gap-3 text-slate-400">
+          <FlaskConical className="h-6 w-6 animate-pulse text-indigo-300" />
+          <p>Loading preview…</p>
+        </div>
       </div>
     );
   }

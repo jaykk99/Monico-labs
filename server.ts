@@ -15,7 +15,7 @@ const DB_DOC_ID = "main_state";
 // Firestore is OPTIONAL. It only activates when real Google Cloud credentials are present
 // (GOOGLE_APPLICATION_CREDENTIALS, GCLOUD_PROJECT/GOOGLE_CLOUD_PROJECT, or FIREBASE_CONFIG).
 // On local/Termux hosting with no credentials, we skip it entirely and persist to the local
-// JSON file instead ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ so a missing cloud project can never break startup or persistence.
+// JSON file instead — so a missing cloud project can never break startup or persistence.
 const firestoreCredentialsPresent = Boolean(
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
   process.env.GCLOUD_PROJECT ||
@@ -30,17 +30,17 @@ if (firestoreCredentialsPresent) {
       initializeApp();
     }
     db = getFirestore();
-    console.log("[vortex-db] Firestore credentials detected ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ cloud persistence enabled.");
+    console.log("[vortex-db] Firestore credentials detected — cloud persistence enabled.");
   } catch (err) {
     db = null;
     console.warn("[vortex-db] Firestore init failed, falling back to local file storage:", (err as Error)?.message || err);
   }
 } else {
-  console.log("[vortex-db] No Firestore credentials ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ using local file storage (vortex_local_db.json).");
+  console.log("[vortex-db] No Firestore credentials — using local file storage (vortex_local_db.json).");
 }
 
-// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real Postgres backend for the database MCP tools (list/create tables, ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
-// insert records, run SQL) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ replaces the old in-memory/local-JSON simulation.
+// ─── Real Postgres backend for the database MCP tools (list/create tables, ────
+// insert records, run SQL) — replaces the old in-memory/local-JSON simulation.
 // Set VORTEX_DATABASE_URL to a real Postgres connection string to activate.
 // All tables live in a dedicated "vortex" schema, namespaced per vortex projectId
 // so multiple projects can share one Postgres instance safely.
@@ -153,7 +153,7 @@ async function vortexLoadAppState(): Promise<any | null> {
   return null;
 }
 
-// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real Vercel deployments for the deployment MCP tools ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// ─── Real Vercel deployments for the deployment MCP tools ──────────────────────
 // Set VERCEL_API_TOKEN (+ optionally VERCEL_TEAM_ID) to activate. deploy_project /
 // trigger_deployment now create ACTUAL Vercel projects + deployments with real,
 // publicly reachable *.vercel.app URLs, instead of a fake internal /p/<name> route.
@@ -173,9 +173,9 @@ async function vortexComposioFetch(path: string, opts: { method?: string; body?:
 const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || "";
 
 if (VERCEL_API_TOKEN) {
-  console.log("[vortex-deploy] VERCEL_API_TOKEN detected ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ real Vercel deployments enabled.");
+  console.log("[vortex-deploy] VERCEL_API_TOKEN detected — real Vercel deployments enabled.");
 } else {
-  console.warn("[vortex-deploy] VERCEL_API_TOKEN not set ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ deployment MCP tools will report an error instead of simulating a deploy.");
+  console.warn("[vortex-deploy] VERCEL_API_TOKEN not set — deployment MCP tools will report an error instead of simulating a deploy.");
 }
 
 function vortexVercelTeamQS(extra: string = ""): string {
@@ -202,7 +202,7 @@ async function vortexVercelFetch(path: string, opts: { method?: string; body?: u
 
 function vortexVercelProjectName(prj: { id: string; name: string }): string {
   // Vercel project names (and the *.vercel.app subdomain derived from them) only allow
-  // lowercase letters, numbers, and hyphens ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no underscores, unlike Postgres identifiers.
+  // lowercase letters, numbers, and hyphens — no underscores, unlike Postgres identifiers.
   const slug = prj.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return `vortex-${slug}-${prj.id.replace(/[^a-z0-9]/gi, "").slice(-8)}`.slice(0, 52).replace(/-+$/, "");
 }
@@ -266,7 +266,7 @@ const app = express();
 app.set("trust proxy", true);
 // Cloud hosts (Render, Cloud Run, Railway, Fly) inject PORT. Fall back to VORTEX_PORT, then 3000.
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : process.env.VORTEX_PORT ? parseInt(process.env.VORTEX_PORT) : 3000;
-// Local Termux host ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ override with your device's LAN IP (e.g. 192.168.1.5) or a tunnel hostname
+// Local Termux host — override with your device's LAN IP (e.g. 192.168.1.5) or a tunnel hostname
 const VORTEX_HOST = process.env.VORTEX_HOST || 'localhost';
 
 // Hardware scaling logic to optimize for low-end (Termux/Mobile) to high-end (Servers)
@@ -288,7 +288,7 @@ if (totalMemMB < 3000 || cpuCores <= 2) {
 app.use(cors());
 app.use(express.json());
 
-// Real API request log ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ feeds /api/analytics with genuine traffic numbers
+// Real API request log — feeds /api/analytics with genuine traffic numbers
 // instead of a fabricated sine-wave. Bounded ring buffer, in-memory only.
 interface ApiRequestLogEntry { ts: number; method: string; path: string; status: number; latencyMs: number; bytes: number; }
 const apiRequestLog: ApiRequestLogEntry[] = [];
@@ -442,7 +442,7 @@ interface ThreatIncident {
 let shieldConfigs: Record<string, ShieldConfig> = {};
 let baseIncidents: ThreatIncident[] = [];
 
-// Real traffic log fed by the actual domain-routing middleware below ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// Real traffic log fed by the actual domain-routing middleware below —
 // replaces the old randomly-fabricated incident generator.
 interface RealRequestLogEntry {
   ts: number;
@@ -511,8 +511,8 @@ function deriveRealIncidents(projectId: string): ThreatIncident[] {
       id: `inc-${r.ts}-${r.ip}`,
       timestamp: new Date(r.ts).toISOString(),
       ip: r.ip,
-      country: "Unknown", // real geo-IP lookup requires an external service/API key ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ not fabricated here
-      flag: "ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ",
+      country: "Unknown", // real geo-IP lookup requires an external service/API key — not fabricated here
+      flag: "🌐",
       threatType: isBlocked ? (suspicious ? "Suspicious path signature blocked" : "Rate-limit block")
                             : "Traffic observed",
       action: isBlocked ? "blocked" : "allowed",
@@ -560,7 +560,7 @@ let realTimeChannels: Record<string, { name: string, subscribers: number }[]> = 
 let storageBuckets: Record<string, { name: string, size: number, files: string[] }[]> = {};
 let autoScalingConfigs: Record<string, number> = {};
 
-// Learned site playbooks Ã¢ÂÂ persisted so the AI never forgets a site it figured out
+// Learned site playbooks — persisted so the AI never forgets a site it figured out
 interface BrowserPlaybook {
   platform: string; url: string; steps: any[];
   successCount: number; failureCount: number;
@@ -645,7 +645,7 @@ async function saveToCloudDB() {
     }
   }
 
-  // 3) Mirror to real Postgres (vortex._app_state) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ this is the DURABLE copy that
+  // 3) Mirror to real Postgres (vortex._app_state) — this is the DURABLE copy that
   //    survives Render redeploys, since the local file/disk does not persist on
   //    the current (no persistent-disk) plan.
   await vortexSaveAppState(dataToSave);
@@ -675,7 +675,7 @@ async function loadFromCloudDB() {
     }
   }
 
-  // 3) Real Postgres (vortex._app_state) is the DURABLE source of truth ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ it survives
+  // 3) Real Postgres (vortex._app_state) is the DURABLE source of truth — it survives
   //    redeploys, unlike the local file/disk on this Render plan. Prefer it over the
   //    local file whenever it has data, so state is never silently lost on a deploy.
   if (vortexPgPool) {
@@ -726,7 +726,7 @@ async function loadFromCloudDB() {
     await saveToCloudDB();
   }
 
-  // Seed default workspace if empty ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ runs regardless of cloud availability.
+  // Seed default workspace if empty — runs regardless of cloud availability.
   if (workspaces.length === 0) {
     workspaces.push({
       id: "ws-default",
@@ -762,8 +762,8 @@ async function loadFromCloudDB() {
         "[vortex] Initializing build workspace to deploy user/active-gate...",
         "[vortex] Loaded 12 dependencies from cloud lockfile",
         "[vortex] Running compiler script: \"vite build\"",
-        "[vite] ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ compiled in 0.8s",
-        "[vortex] Deployment successful! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ",
+        "[vite] ✓ compiled in 0.8s",
+        "[vortex] Deployment successful! 🎉",
       ],
       deployedHtml: `
         <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center p-8 text-center">
@@ -865,15 +865,24 @@ app.get("/api/projects", (req, res) => {
 
 app.post("/api/projects", (req, res) => {
   const { name, framework, repo, branch, customDescription } = req.body;
-  if (!name || !repo) {
+  if (typeof name !== "string" || !name.trim() || typeof repo !== "string" || !repo.trim()) {
     return res.status(400).json({ error: "Name and Repo are required fields." });
+  }
+  if (name.trim().length > 100) {
+    return res.status(400).json({ error: "Name must be 100 characters or fewer." });
+  }
+  if (repo.trim().length > 200) {
+    return res.status(400).json({ error: "Repo must be 200 characters or fewer." });
+  }
+  if (typeof branch === "string" && branch.length > 100) {
+    return res.status(400).json({ error: "Branch must be 100 characters or fewer." });
   }
 
   const normalizedRepo = repo.includes("/") ? repo : `jayomer1234/${repo}`;
 
   const prj: Project = {
     id: `proj-${generateId()}`,
-    name: name.toLowerCase().replace(/[^a-z0-9_-]/g, "-"),
+    name: name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-"),
     framework: framework || "react",
     repo: normalizedRepo,
     branch: branch || "main",
@@ -968,10 +977,10 @@ app.post("/api/projects/:id/domains/agent-allocate", (req, res) => {
       `[vortex] Registering local DNS entry in file-based persistent DB...`,
       `[vortex] Route mapped to local host: ${VORTEX_HOST}:${PORT}.`,
       `[vortex] HTTP routing configured (SSL not required on local network).`,
-      `[vortex] Local route handler verified ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ requests will reach ${VORTEX_HOST}:${PORT}.`,
+      `[vortex] Local route handler verified — requests will reach ${VORTEX_HOST}:${PORT}.`,
       `[vortex] Path endpoint created: ${formattedSubdomain}`,
       `[vortex] Local routing bundle complete!`,
-      `[vortex] App available at: http://${formattedSubdomain} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`
+      `[vortex] App available at: http://${formattedSubdomain} 🎉`
     ],
     deployedHtml: `
       <div class="min-h-screen bg-[#070707] text-[#e5e5e5] font-sans flex flex-col justify-center items-center p-8 text-center select-none">
@@ -1156,7 +1165,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[compiler] resolving module endpoints and scanning tree-shaking assets...`,
       `[compiler] Critical compilation error inside /src/layouts/dashboard.tsx (Line 38:22)`,
       `[compiler] Uncaught SyntaxError: Unexpected token. Expected closing curly bracket "}"`,
-      `[compiler] ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Source: return ( <div className="border border-neutral-90 px-3 truncate font-mono"> ...`,
+      `[compiler] └─ Source: return ( <div className="border border-neutral-90 px-3 truncate font-mono"> ...`,
       `[vortex] Error: Vite packaging compiler process exited with status code 1. Bundling aborted.`,
       `[vortex] Error: Build failed and edge-compilation was halted. Review diagnostics above.`
     ];
@@ -1170,7 +1179,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[vortex] writing built index.html to local deployment store`,
       `[vortex] verifying local routing for: ${VORTEX_HOST}:${PORT}/p/${prj.name}`,
       `[vortex] Deployment active on this host (${VORTEX_HOST}:${PORT})`,
-      `[vortex] Deployment completed successfully! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`,
+      `[vortex] Deployment completed successfully! 🎉`,
     ];
   } else if (prj.framework === "nextjs") {
     logs = [
@@ -1182,7 +1191,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[compiler] Static optimizations: 14 HTML routes resolved, 1 dynamic router edge`,
       `[vortex] Linking local API routes for /api/* handlers`,
       `[vortex] Registering routes on this host's router`,
-      `[vortex] Deployment successful! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`,
+      `[vortex] Deployment successful! 🎉`,
     ];
   } else {
     logs = [
@@ -1192,7 +1201,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       `[vortex] endpoints registered on this host's router`,
       `[vortex] verifying local route boundaries for ${prj.name} at ${VORTEX_HOST}:${PORT}`,
       `[vortex] Serverless function gateway live on this host.`,
-      `[vortex] Deployment successful! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`,
+      `[vortex] Deployment successful! 🎉`,
     ];
   }
 
@@ -1231,7 +1240,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       activeHtml = `
         <div class="min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-center items-center p-8 text-center">
           <div class="space-y-4">
-            <div class="text-4xl text-blue-400">ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¯ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¸ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ</div>
+            <div class="text-4xl text-blue-400">⚛️</div>
             <h2 class="text-3xl font-black">Modern Vite + React Application</h2>
             <p class="text-slate-400 text-sm max-w-md">Your production React application has compiled and deployed with Vortex Cloud Edge in record time.</p>
             <div class="p-3 bg-slate-800 rounded-lg text-xs font-mono border border-slate-700">Commit: ${commitHashHex} - "${commitMsg}"</div>
@@ -1242,7 +1251,7 @@ app.post("/api/projects/:projectId/deployments/trigger", async (req, res) => {
       activeHtml = `
         <div class="min-h-screen bg-neutral-950 text-white font-sans flex flex-col justify-center items-center p-8 text-center">
           <div class="space-y-4">
-            <div class="text-4xl text-neutral-200">ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ²</div>
+            <div class="text-4xl text-neutral-200">▲</div>
             <h2 class="text-3xl font-black">Next.js Edge Dashboard</h2>
             <p class="text-neutral-400 text-sm max-w-md">Powered by Vortex Global CDN with fast Incremental Static Regeneration.</p>
             <div class="p-3 bg-neutral-900 rounded-lg text-xs font-mono border border-neutral-800 text-neutral-400">Commit: ${commitHashHex} - "${commitMsg}"</div>
@@ -1475,7 +1484,7 @@ app.get("/api/functions/logs/:functionId", (req, res) => {
   res.json(logs.reverse().slice(0, 20)); // Limit to most recent 20
 });
 
-// Analytics endpoint ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ bucketed from the real request log above. No
+// Analytics endpoint — bucketed from the real request log above. No
 // synthetic traffic, no fabricated Web Vitals (those are client-side
 // timing metrics this Node backend has no way to measure honestly).
 app.get("/api/analytics", (req, res) => {
@@ -1503,7 +1512,7 @@ app.get("/api/analytics", (req, res) => {
 
   res.json({
     metrics: data,
-    vitals: null, // Web Vitals (LCP/FID/CLS) require real-user client-side measurement (e.g. a browser web-vitals beacon) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ not available from this backend, so not fabricated here.
+    vitals: null, // Web Vitals (LCP/FID/CLS) require real-user client-side measurement (e.g. a browser web-vitals beacon) — not available from this backend, so not fabricated here.
     sampleSize: apiRequestLog.length,
   });
 });
@@ -1549,7 +1558,7 @@ app.post("/api/projects/:projectId/shield", (req, res) => {
   if (brotli !== undefined) config.brotli = brotli;
   if (securityLevel !== undefined) {
     // Real threat counts come only from the domain-routing middleware's
-    // actual block events (see recordRealRequest) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no synthetic bump here.
+    // actual block events (see recordRealRequest) — no synthetic bump here.
     config.securityLevel = securityLevel;
   }
   
@@ -1607,7 +1616,7 @@ app.delete("/api/projects/:projectId/shield/waf/:ruleId", (req, res) => {
   res.json({ success: true, wafRules: shieldConfigs[projectId]?.wafRules || [] });
 });
 
-// GET threat incidents for a project ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ derived from REAL captured traffic
+// GET threat incidents for a project — derived from REAL captured traffic
 // (see recordRealRequest / deriveRealIncidents above), not fabricated events.
 app.get("/api/projects/:projectId/shield/threats", (req, res) => {
   const { projectId } = req.params;
@@ -2029,7 +2038,7 @@ app.delete("/api/projects/:projectId/database/tables/:tableName", (req, res) => 
   res.json({ success: true, tables: dbTablesForApi(projectId) });
 });
 
-// Real, lightweight SQL executor ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ parses actual column/VALUES lists and
+// Real, lightweight SQL executor — parses actual column/VALUES lists and
 // WHERE clauses against the project's real in-memory tables. No fabricated
 // or randomly-generated data: values come from the SQL statement itself.
 function parseWhereClause(whereStr: string): Array<{ field: string; op: string; val: string }> {
@@ -2098,7 +2107,7 @@ function coerceValueForColumn(raw: string, col: any): any {
   return raw;
 }
 
-// Interactive SQL & Query executor (REAL ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no fabricated results)
+// Interactive SQL & Query executor (REAL — no fabricated results)
 // ----------------------------------------------------------------------------
 // Shared embedded-SQLite database engine: the same implementation backs the
 // REST /database/query endpoint AND the MCP query_database tool when no
@@ -2219,18 +2228,29 @@ app.get("/api/projects/:projectId/auth/users", (req, res) => {
 
 app.post("/api/projects/:projectId/auth/users", (req, res) => {
   const { projectId } = req.params;
-  const { email, status } = req.body;
+  const { email, status, role } = req.body;
+  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return res.status(400).json({ error: "A valid email is required." });
+  }
+  if (status !== undefined && status !== "active" && status !== "suspended") {
+    return res.status(400).json({ error: "status must be 'active' or 'suspended'." });
+  }
+  if (role !== undefined && !["admin", "member", "viewer"].includes(role)) {
+    return res.status(400).json({ error: "role must be 'admin', 'member', or 'viewer'." });
+  }
   if (!authUsers[projectId]) {
     authUsers[projectId] = [];
   }
   const newUser: AuthUser = {
     id: `usr-${generateId()}`,
-    email: email || "unknown@monaco.io",
+    email: email.trim(),
     createdAt: new Date().toISOString(),
     lastLogin: new Date().toISOString(),
-    status: status || "active"
+    status: status || "active",
+    ...(role ? { role } : {}),
   };
   authUsers[projectId].push(newUser);
+  saveToCloudDB();
   res.json(newUser);
 });
 
@@ -2238,6 +2258,7 @@ app.delete("/api/projects/:projectId/auth/users/:userId", (req, res) => {
   const { projectId, userId } = req.params;
   if (authUsers[projectId]) {
     authUsers[projectId] = authUsers[projectId].filter(u => u.id !== userId);
+    saveToCloudDB();
   }
   res.json({ success: true, userId });
 });
@@ -2251,7 +2272,12 @@ app.get("/api/projects/:projectId/api-keys", (req, res) => {
   if (!apiKeys[projectId]) {
     apiKeys[projectId] = [];
   }
-  res.json(apiKeys[projectId]);
+  // Never expose raw secrets on the list endpoint — mask them. The full
+  // secret is returned once, at creation time (POST), and stored server-side.
+  res.json(apiKeys[projectId].map((k) => ({
+    ...k,
+    secret: k.secret && k.secret.length > 8 ? `${k.secret.slice(0, 8)}…(redacted)` : "(redacted)",
+  })));
 });
 
 app.post("/api/projects/:projectId/api-keys", (req, res) => {
@@ -2273,6 +2299,7 @@ app.post("/api/projects/:projectId/api-keys", (req, res) => {
   };
   
   apiKeys[projectId].push(newKey);
+  saveToCloudDB();
   res.json(newKey);
 });
 
@@ -2280,6 +2307,7 @@ app.delete("/api/projects/:projectId/api-keys/:keyId", (req, res) => {
   const { projectId, keyId } = req.params;
   if (apiKeys[projectId]) {
     apiKeys[projectId] = apiKeys[projectId].filter(k => k.id !== keyId);
+    saveToCloudDB();
   }
   res.json({ success: true, keyId });
 });
@@ -2314,7 +2342,7 @@ app.post("/api/projects/:projectId/composio/connectors/:id/toggle", (req, res) =
   if (match) {
     match.isConnected = !match.isConnected;
     // Real scope count requires a live Composio API call to list granted
-    // scopes for this connector ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ not implemented here, so left at 0
+    // scopes for this connector — not implemented here, so left at 0
     // rather than showing a fabricated number.
     match.scopesCount = 0;
     saveToCloudDB();
@@ -2353,7 +2381,7 @@ app.post("/api/projects/:projectId/composio/webhooks/test", async (req, res) => 
       connectorId,
       timestamp: new Date().toISOString(),
       dispatchStatus: "NOT_ATTEMPTED",
-      body: { message: "No webhookUrl provided ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ nothing was dispatched." }
+      body: { message: "No webhookUrl provided — nothing was dispatched." }
     });
   }
   try {
@@ -2609,7 +2637,7 @@ mcpServer.tool("edit_project", "Edits a project configuration.", {
    return { content: [{ type: "text", text: `Project ${projectId} updated successfully` }] };
 });
 
-mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real custom domains (e.g. mysite.com) are actually attached via the Vercel domains API ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you'll then need to point its DNS at Vercel. Bare names with no valid TLD just get you the real *.vercel.app URL.", {
+mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real custom domains (e.g. mysite.com) are actually attached via the Vercel domains API — you'll then need to point its DNS at Vercel. Bare names with no valid TLD just get you the real *.vercel.app URL.", {
   projectId: z.string(),
   domainName: z.string()
 }, async ({ projectId, domainName }) => {
@@ -2635,7 +2663,7 @@ mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real cust
    }
    const liveUrl = prj?.vercelProjectName ? `https://${prj.vercelProjectName}.vercel.app` : null;
    const note = liveUrl
-     ? ` Note: "${domainName}" isn't a real, ownable domain, so nothing was attached at the DNS level ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ your project's real live URL is ${liveUrl}.`
+     ? ` Note: "${domainName}" isn't a real, ownable domain, so nothing was attached at the DNS level — your project's real live URL is ${liveUrl}.`
      : "";
    return { content: [{ type: "text", text: `Domain ${domainName} added to project ${projectId}.${note}` }] };
 });
@@ -2838,21 +2866,21 @@ mcpServer.tool("list_composio_connectors", "Lists REAL connected third-party int
        }));
        return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
      }
-     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${res.json?.error?.message || "unknown error"}` }] };
+     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} — ${res.json?.error?.message || "unknown error"}` }] };
    }
    return { content: [{ type: "text", text: JSON.stringify(composioConnectors[projectId] || [], null, 2) }] };
 });
 
 mcpServer.tool("toggle_composio_connector", "Enables/disables a REAL Composio connected account.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
    if (COMPOSIO_API_KEY) {
-     // Composio connected accounts don't have a simple enable/disable toggle ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ the real lifecycle
+     // Composio connected accounts don't have a simple enable/disable toggle — the real lifecycle
      // is delete (disconnect) vs create (reconnect via OAuth). We treat "toggle off" as a real disconnect.
      const res = await vortexComposioFetch(`/connected_accounts/${connectorId}`, { method: "DELETE" });
      if (res.ok) {
        logMcpAction(projectId, `Disconnected real Composio connected account ${connectorId}`);
        return { content: [{ type: "text", text: `Disconnected real Composio account ${connectorId}. To reconnect, use the OAuth connect flow for that toolkit.` }] };
      }
-     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} trying to disconnect ${connectorId} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${res.json?.error?.message || "unknown error"}` }] };
+     return { content: [{ type: "text", text: `Error: Composio API returned ${res.status} trying to disconnect ${connectorId} — ${res.json?.error?.message || "unknown error"}` }] };
    }
    const conn = (composioConnectors[projectId] || []).find(c => c.id === connectorId);
    if (conn) { conn.isConnected = !conn.isConnected; saveToCloudDB(); }
@@ -3004,18 +3032,26 @@ mcpServer.tool("push_git_changes", "Deploy code directly via Git.", { projectId:
 
 // Auth & Self-Hosting
 mcpServer.tool("update_auth_user", "Change user roles or metadata.", { projectId: z.string(), userId: z.string(), role: z.string() }, async ({ projectId, userId, role }) => {
+   const allowedRoles = ["admin", "member", "viewer"] as const;
+   if (!allowedRoles.includes(role as (typeof allowedRoles)[number])) {
+       return { content: [{ type: "text", text: `Error: invalid role "${role}" — must be one of: ${allowedRoles.join(", ")}.` }] };
+   }
    if (authUsers[projectId]) {
        const user = authUsers[projectId].find(u => u.id === userId);
        if (user) {
-           user.status = role as "active" | "suspended"; // Mocking role with status
+           user.role = role as (typeof allowedRoles)[number];
            saveToCloudDB();
+           return { content: [{ type: "text", text: `Updated user ${userId} to role ${role}` }] };
        }
    }
-   return { content: [{ type: "text", text: `Updated user ${userId} to role ${role}` }] };
+   return { content: [{ type: "text", text: `Error: user ${userId} not found in project ${projectId}.` }] };
 });
 
 mcpServer.tool("delete_auth_user", "Revoke access and remove users.", { projectId: z.string(), userId: z.string() }, async ({ projectId, userId }) => {
-   if (authUsers[projectId]) authUsers[projectId] = authUsers[projectId].filter(u => u.id !== userId);
+   if (authUsers[projectId]) {
+       authUsers[projectId] = authUsers[projectId].filter(u => u.id !== userId);
+       saveToCloudDB();
+   }
    return { content: [{ type: "text", text: `Deleted user ${userId}` }] };
 });
 
@@ -3085,7 +3121,7 @@ mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { 
    if (bucket) {
       bucket.files.push(fileName);
       // Real size if the caller provided one; otherwise 0 rather than a fabricated constant.
-      // (This in-memory bucket has no actual object storage backend ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ bytes aren't retained.)
+      // (This in-memory bucket has no actual object storage backend — bytes aren't retained.)
       bucket.size += typeof sizeBytes === "number" && sizeBytes > 0 ? sizeBytes : 0;
       saveToCloudDB();
    }
@@ -3294,10 +3330,10 @@ mcpServer.tool("configure_backup_policy", "Set retention windows and cron schedu
 });
 
 // Logging & Observability
-mcpServer.tool("stream_logs", "Fetch REAL recent build/runtime log lines from the project's live Vercel deployment (snapshot, not a true live tail ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ call again for fresh lines).", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("stream_logs", "Fetch REAL recent build/runtime log lines from the project's live Vercel deployment (snapshot, not a true live tail — call again for fresh lines).", { projectId: z.string() }, async ({ projectId }) => {
    const latestDep = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""))[0];
    if (!latestDep?.vercelDeploymentId || !VERCEL_API_TOKEN) {
-     return { content: [{ type: "text", text: `Error: No real Vercel deployment found for project ${projectId} yet ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ call deploy_project first.` }] };
+     return { content: [{ type: "text", text: `Error: No real Vercel deployment found for project ${projectId} yet — call deploy_project first.` }] };
    }
    const res = await vortexVercelFetch(`/v2/deployments/${latestDep.vercelDeploymentId}/events`, { qs: "limit=50" });
    if (!res.ok) return { content: [{ type: "text", text: `Error: Vercel logs API returned ${res.status}` }] };
@@ -3376,7 +3412,7 @@ mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the
    if (prj && VERCEL_API_TOKEN) {
      const vprj = await vortexEnsureVercelProject(prj);
      if (vprj) {
-       // Vercel's env API upserts by (key, target) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ remove any existing var with this key first to avoid dupes.
+       // Vercel's env API upserts by (key, target) — remove any existing var with this key first to avoid dupes.
        const existingVars = await vortexVercelFetch(`/v10/projects/${vprj.id}/env`);
        const dupe = existingVars.ok ? (existingVars.json?.envs || []).find((e: any) => e.key === key) : null;
        if (dupe) await vortexVercelFetch(`/v9/projects/${vprj.id}/env/${dupe.id}`, { method: "DELETE" });
@@ -3385,7 +3421,7 @@ mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the
          body: { key, value, type: "encrypted", target: ["production", "preview", "development"] }
        });
        if (!res.ok) {
-         return { content: [{ type: "text", text: `Error: Saved locally but failed to set real Vercel env var ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${res.json?.error?.message || res.status}` }] };
+         return { content: [{ type: "text", text: `Error: Saved locally but failed to set real Vercel env var — ${res.json?.error?.message || res.status}` }] };
        }
        saveToCloudDB();
        logMcpAction(projectId, `Set real Vercel environment variable: ${key} (redeploy to apply)`);
@@ -3394,10 +3430,10 @@ mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the
    }
    saveToCloudDB();
    logMcpAction(projectId, `Configured runtime environment variable: ${key}`);
-   return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId} (no live Vercel project yet ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ will attach once the project is deployed).` }] };
+   return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId} (no live Vercel project yet — will attach once the project is deployed).` }] };
 });
 
-mcpServer.tool("list_env_variables", "View active environment variables (with secrets masked) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ reconciled against the real live Vercel project when one exists.", { projectId: z.string() }, async ({ projectId }) => {
+mcpServer.tool("list_env_variables", "View active environment variables (with secrets masked) — reconciled against the real live Vercel project when one exists.", { projectId: z.string() }, async ({ projectId }) => {
    const envs = envVars[projectId] || [];
    const prj = projects.find(p => p.id === projectId);
    if (prj?.vercelProjectId && VERCEL_API_TOKEN) {
@@ -3479,7 +3515,7 @@ mcpServer.tool("list_team_members", "Audit who currently has access to the contr
 });
 
 // Disaster Recovery & Rollbacks
-mcpServer.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ really re-points production traffic on Vercel when the deployments are real.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+mcpServer.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit — really re-points production traffic on Vercel when the deployments are real.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
@@ -3499,7 +3535,7 @@ mcpServer.tool("rollback_deployment", "Instantly revert a live environment to th
    if (proj.vercelProjectId && nextStableDep.vercelDeploymentId && VERCEL_API_TOKEN) {
      const promote = await vortexVercelFetch(`/v10/projects/${proj.vercelProjectId}/promote/${nextStableDep.vercelDeploymentId}`, { method: "POST" });
      if (!promote.ok) {
-       return { content: [{ type: "text", text: `Error: Vercel promote-to-production failed ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ${promote.json?.error?.message || promote.status}` }] };
+       return { content: [{ type: "text", text: `Error: Vercel promote-to-production failed — ${promote.json?.error?.message || promote.status}` }] };
      }
      proj.activeDeploymentId = nextStableDep.id;
      saveToCloudDB();
@@ -3538,7 +3574,7 @@ mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a speci
    }
 });
 
-mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ really cancels the build on Vercel when the deployment is real.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
+mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight — really cancels the build on Vercel when the deployment is real.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
    const dep = deployments.find(d => d.id === deploymentId && d.projectId === projectId);
    if (!dep) {
       return { content: [{ type: "text", text: `Error: Deployment ${deploymentId} for project ${projectId} not found.` }] };
@@ -3574,7 +3610,7 @@ mcpServer.tool("compare_environments", "Compare configuration variables and depl
    const variables = envVars[projectId] || [];
    const md = `### Environment Variables: "${proj.name}"
 
-Per-environment variable snapshots aren't implemented ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ this project has a single shared variable set, so ${envA} and ${envB} currently see the same values (no real drift comparison is possible until per-environment storage exists):
+Per-environment variable snapshots aren't implemented — this project has a single shared variable set, so ${envA} and ${envB} currently see the same values (no real drift comparison is possible until per-environment storage exists):
 
 | Variable Name | Value |
 | :--- | :--- |
@@ -3596,7 +3632,7 @@ mcpServer.tool("generate_deployment_report", "Compile a markdown summary of all 
    const keyCount = (apiKeys[projectId] || []).length;
    const auditEntries = auditTrails[projectId] || [];
    const depRows = projDeps.slice(0, 5).map(d =>
-     `| \`${d.id}\` | ${d.status === "ready" ? "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"} ${d.status} | ${d.commitMessage.substring(0, 38)} | ${new Date(d.createdAt).toISOString().substring(0, 19)} |`
+     `| \`${d.id}\` | ${d.status === "ready" ? "✓" : "✗"} ${d.status} | ${d.commitMessage.substring(0, 38)} | ${new Date(d.createdAt).toISOString().substring(0, 19)} |`
    ).join("\n");
    const recentAudit = auditEntries.slice(0, 3).map(a => `- ${a.timestamp.substring(0, 19)}: ${a.action}`).join("\n");
    const md = [
@@ -3719,12 +3755,12 @@ mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests a
            const r = await fetch(url, { signal: controller.signal });
            clearTimeout(t);
            const ms = Date.now() - start;
-           results.push(`${r.ok ? "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"} ${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ HTTP ${r.status} in ${ms}ms`);
+           results.push(`${r.ok ? "✓" : "✗"} ${url} — HTTP ${r.status} in ${ms}ms`);
        } catch (e: any) {
-           results.push(`ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ${url} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ${e.message}`);
+           results.push(`✗ ${url} — ${e.message}`);
        }
    }
-   const passed = results.filter(r => r.startsWith("ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ")).length;
+   const passed = results.filter(r => r.startsWith("✓")).length;
    logMcpAction(projectId, `E2E health checks: ${passed}/${results.length} passed`);
    return { content: [{ type: "text", text: `E2E smoke tests for project "${prj.name}": ${passed}/${results.length} passed\n${results.join("\n")}` }] };
 });
@@ -3790,7 +3826,7 @@ mcpServer.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audi
         try {
             auditJson = execSync("npm audit --json --prefix .", { timeout: 20000, encoding: "utf8" });
         } catch (e: any) {
-            // npm audit exits with code 1 when vulnerabilities are found ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ stdout still has JSON
+            // npm audit exits with code 1 when vulnerabilities are found — stdout still has JSON
             auditJson = e.stdout || "";
         }
         if (!auditJson) return { content: [{ type: "text", text: `npm audit produced no output for project ${projectId}.` }] };
@@ -3798,7 +3834,7 @@ mcpServer.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audi
         const v = audit.metadata?.vulnerabilities || {};
         const total = (v.low || 0) + (v.moderate || 0) + (v.high || 0) + (v.critical || 0);
         if (total === 0) {
-            return { content: [{ type: "text", text: `Audit for project ${projectId}: ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ No vulnerabilities found. ${audit.metadata?.totalDependencies || 0} packages scanned.` }] };
+            return { content: [{ type: "text", text: `Audit for project ${projectId}: ✓ No vulnerabilities found. ${audit.metadata?.totalDependencies || 0} packages scanned.` }] };
         }
         const lines = [`Audit for project ${projectId}: ${total} vulnerabilities found across ${audit.metadata?.totalDependencies || 0} packages.`,
             `Critical: ${v.critical || 0} | High: ${v.high || 0} | Moderate: ${v.moderate || 0} | Low: ${v.low || 0}`];
@@ -3828,10 +3864,10 @@ mcpServer.tool("get_live_deployment_url", "Return the REAL live, active URL for 
     if (activeDep?.vercelUrl) {
       return { content: [{ type: "text", text: activeDep.vercelUrl }] };
     }
-    return { content: [{ type: "text", text: `Error: No real live deployment yet for project ${projectId} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ call deploy_project first.` }] };
+    return { content: [{ type: "text", text: `Error: No real live deployment yet for project ${projectId} — call deploy_project first.` }] };
 });
 
-mcpServer.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ uses your connected Jira account.", { issueKey: z.string(), comment: z.string().optional() }, async ({ issueKey, comment }) => {
+mcpServer.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio — uses your connected Jira account.", { issueKey: z.string(), comment: z.string().optional() }, async ({ issueKey, comment }) => {
     if (!COMPOSIO_API_KEY) return { content: [{ type: "text", text: "Composio not configured. Set COMPOSIO_API_KEY to enable Jira integration." }] };
     try {
         // Get issue details
@@ -3857,7 +3893,7 @@ mcpServer.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio Ã�
     }
 });
 
-mcpServer.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Composio ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ uses your connected Linear account.", { ticketId: z.string(), comment: z.string().optional() }, async ({ ticketId, comment }) => {
+mcpServer.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Composio — uses your connected Linear account.", { ticketId: z.string(), comment: z.string().optional() }, async ({ ticketId, comment }) => {
     if (!COMPOSIO_API_KEY) return { content: [{ type: "text", text: "Composio not configured. Set COMPOSIO_API_KEY to enable Linear integration." }] };
     try {
         const getRes = await vortexComposioFetch("/actions/LINEAR_GET_ISSUE/execute", {
@@ -3882,7 +3918,7 @@ mcpServer.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Compos
     }
 });
 
-mcpServer.tool("create_deployment_notification", "Post deployment notifications to Slack via Composio ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ uses your connected Slack account.", { projectId: z.string(), message: z.string(), channel: z.string().optional() }, async ({ projectId, message, channel }) => {
+mcpServer.tool("create_deployment_notification", "Post deployment notifications to Slack via Composio — uses your connected Slack account.", { projectId: z.string(), message: z.string(), channel: z.string().optional() }, async ({ projectId, message, channel }) => {
     logMcpAction(projectId, `Deployment notification: ${message}`);
     const prj = projects.find(p => p.id === projectId);
     const text = `*[Monico-labs / ${prj?.name || projectId}]* ${message}`;
@@ -3956,7 +3992,7 @@ mcpServer.tool(
 
     const playbookKey = platform.toLowerCase();
     const existingPlaybook = browserPlaybooks[playbookKey];
-    const logs: string[] = [`[browser] ${platform} signup Ã¢ÂÂ ${targetUrl}`];
+    const logs: string[] = [`[browser] ${platform} signup — ${targetUrl}`];
     if (existingPlaybook) {
       logs.push(`[playbook] Found saved playbook for "${platform}" (${existingPlaybook.steps.length} steps, ${existingPlaybook.successCount} prior successes)`);
     }
@@ -3997,7 +4033,7 @@ mcpServer.tool(
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const creds = { email, password, username: username || email.split("@")[0].replace(/[^a-z0-9]/gi,""), fullName: fullName || "Monico User", platform };
 
-      // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Helper: execute one action on the page Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+      // ─── Helper: execute one action on the page ───────────────────────────
       const execAction = async (action: any): Promise<{ ok: boolean; msg: string }> => {
         try {
           switch (action.action) {
@@ -4036,7 +4072,7 @@ mcpServer.tool(
         }
       };
 
-      // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ PHASE 1: Try saved playbook if one exists Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+      // ─── PHASE 1: Try saved playbook if one exists ──────────────────────
       if (existingPlaybook && existingPlaybook.steps.length > 0) {
         logs.push(`[phase1] Executing saved ${existingPlaybook.steps.length}-step playbook...`);
         let playbookOk = true;
@@ -4054,7 +4090,7 @@ mcpServer.tool(
           const res = await execAction(filledStep);
           logs.push(`[playbook step] ${res.msg}`);
           if (!res.ok && filledStep.action !== "wait") {
-            logs.push(`[phase1] Playbook step failed Ã¢ÂÂ switching to AI-adaptive mode`);
+            logs.push(`[phase1] Playbook step failed — switching to AI-adaptive mode`);
             playbookOk = false;
             break;
           }
@@ -4065,17 +4101,17 @@ mcpServer.tool(
             saveToCloudDB();
             if (projectId) logMcpAction(projectId, `Created ${platform} account: ${email} (playbook)`);
             await browser.close();
-            return { content: [{ type: "text", text: `Ã¢ÂÂ ${platform} account created via saved playbook:\n${logs.join("\n")}` }] };
+            return { content: [{ type: "text", text: `✓ ${platform} account created via saved playbook:\n${logs.join("\n")}` }] };
           }
         }
         if (!playbookOk) {
-          logs.push(`[phase1] Playbook failed Ã¢ÂÂ re-navigating and trying AI-adaptive mode`);
+          logs.push(`[phase1] Playbook failed — re-navigating and trying AI-adaptive mode`);
           await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 30000 });
           await new Promise(r => setTimeout(r, 2000));
         }
       }
 
-      // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ PHASE 2: AI-adaptive step-by-step mode Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+      // ─── PHASE 2: AI-adaptive step-by-step mode ────────────────────────
       let done = false; let step = 0;
       let stuckUrl = ""; let stuckCount = 0;
       const successfulSteps: any[] = [];
@@ -4084,14 +4120,14 @@ mcpServer.tool(
 Credentials: email="${creds.email}", password="${creds.password}", username="${creds.username}", name="${creds.fullName}"
 Current URL: ${currentUrl}
 
-Return ONE JSON action only Ã¢ÂÂ no markdown, no explanation:
-{"action":"type","selector":"CSS_SELECTOR","value":"VALUE"}   Ã¢ÂÂ fill a field
-{"action":"click","selector":"CSS_SELECTOR"}                  Ã¢ÂÂ click element
-{"action":"clickAt","x":N,"y":N}                              Ã¢ÂÂ click by coords (use for CAPTCHAs)
-{"action":"key","key":"Enter"}                                 Ã¢ÂÂ press key
-{"action":"wait","ms":2000}                                    Ã¢ÂÂ wait
-{"action":"done","message":"DESCRIPTION"}                     Ã¢ÂÂ signup complete
-{"action":"error","message":"DESCRIPTION"}                    Ã¢ÂÂ cannot proceed
+Return ONE JSON action only — no markdown, no explanation:
+{"action":"type","selector":"CSS_SELECTOR","value":"VALUE"}   — fill a field
+{"action":"click","selector":"CSS_SELECTOR"}                  — click element
+{"action":"clickAt","x":N,"y":N}                              — click by coords (use for CAPTCHAs)
+{"action":"key","key":"Enter"}                                 — press key
+{"action":"wait","ms":2000}                                    — wait
+{"action":"done","message":"DESCRIPTION"}                     — signup complete
+{"action":"error","message":"DESCRIPTION"}                    — cannot proceed
 
 For selectors prefer: input[type=email], input[type=password], input[name=username], button[type=submit]
 For CAPTCHAs: click the iframe/checkbox first; if image tiles appear use clickAt with coordinates.
@@ -4109,9 +4145,9 @@ Use {email}, {password}, {username}, {fullName} as placeholders in values so the
           stuckUrl = currentUrl; stuckCount = 0;
         }
 
-        // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ PHASE 2b: Stuck Ã¢ÂÂ analyze HTML and generate playbook Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+        // ─── PHASE 2b: Stuck — analyze HTML and generate playbook ────────
         if (stuckCount >= 3) {
-          logs.push(`[stuck] Same URL for ${stuckCount} steps Ã¢ÂÂ analyzing page HTML to build playbook...`);
+          logs.push(`[stuck] Same URL for ${stuckCount} steps — analyzing page HTML to build playbook...`);
           const html = await page.content();
           const trimmedHtml = html.substring(0, 15000); // enough for Gemini to understand structure
 
@@ -4157,7 +4193,7 @@ Return ONLY the JSON array, no markdown:
             };
             browserPlaybooks[playbookKey] = newPlaybook;
             saveToCloudDB();
-            logs.push(`[playbook-gen] Saved playbook for "${platform}" Ã¢ÂÂ will use it immediately and on all future runs`);
+            logs.push(`[playbook-gen] Saved playbook for "${platform}" — will use it immediately and on all future runs`);
 
             // Execute the freshly generated plan
             for (const pstep of plan) {
@@ -4184,7 +4220,7 @@ Return ONLY the JSON array, no markdown:
             }
             if (done) break;
           } else {
-            logs.push(`[stuck] HTML analysis returned no usable steps Ã¢ÂÂ continuing AI mode`);
+            logs.push(`[stuck] HTML analysis returned no usable steps — continuing AI mode`);
           }
           stuckCount = 0;
         }
@@ -4252,7 +4288,7 @@ Return ONLY the JSON array, no markdown:
     }
 
     const success = logs.some(l => l.includes("done:") || l.includes("[done]"));
-    return { content: [{ type: "text", text: `${success ? "Ã¢ÂÂ" : "Ã¢ÂÂ "} ${platform} account automation:\n${logs.join("\n")}` }] };
+    return { content: [{ type: "text", text: `${success ? "✓" : "✗"} ${platform} account automation:\n${logs.join("\n")}` }] };
   }
 );
 
@@ -4496,7 +4532,7 @@ mcpServer.tool(
     const filtered = platform ? all.filter(([k]) => k === platform.toLowerCase()) : all;
     if (filtered.length === 0) return { content: [{ type: "text", text: `No playbooks saved yet. Playbooks are automatically created when create_platform_account figures out a site.` }] };
     const rows = filtered.map(([k, p]) =>
-      `- **${k}** (${p.steps.length} steps) Ã¢ÂÂ ${p.successCount} successes / ${p.failureCount} failures Ã¢ÂÂ last updated ${p.updatedAt?.substring(0,10) || "?"}
+      `- **${k}** (${p.steps.length} steps) — ${p.successCount} successes / ${p.failureCount} failures — last updated ${p.updatedAt?.substring(0,10) || "?"}
   URL: ${p.url}
   Notes: ${p.notes}`
     ).join("\n");
@@ -4584,7 +4620,7 @@ const mcpRateLimitMiddleware = (req: express.Request, res: express.Response, nex
 const mcpAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
    // Enforce the documented MCP bearer token (VRX_MCP_AUTH_TOKEN, falling back to the
    // shared VORTEX_LIVE_API_KEY default) via Authorization header, x-api-key/api-key
-   // header, or ?key= query param ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ matches the auth contract documented in README.md.
+   // header, or ?key= query param — matches the auth contract documented in README.md.
    const configuredKey = process.env.VRX_MCP_AUTH_TOKEN || process.env.VORTEX_LIVE_API_KEY || generatedMcpToken;
    const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
 
@@ -4680,7 +4716,7 @@ app.get("/api/agent/local-models", async (req, res) => {
       if (glmModels.length > 0) {
         glmModels.forEach(m => results.push({
           provider: "ollama", model: `ollama:${m}`,
-          label: `${m} (Ollama · local · no API key)`, available: true
+          label: `${m} (Ollama • local • no API key)`, available: true
         }));
       } else {
         // Ollama is running but no GLM model installed
@@ -4697,7 +4733,7 @@ app.get("/api/agent/local-models", async (req, res) => {
       const data = await r.json() as any;
       (data.data || []).forEach((m: any) => results.push({
         provider: "llamaserver", model: `llamaserver:${m.id}`,
-        label: `${m.id} (llama-server · local · no API key)`, available: true
+        label: `${m.id} (llama-server • local • no API key)`, available: true
       }));
     }
   } catch {}
@@ -4912,9 +4948,9 @@ User Request: ${prompt}` }] }
      // ── OpenAI-compatible path: Ollama (local/no-API), llama-server, or Z.ai GLM ──
      if (isGlmModel) {
        if (isLocalModel) {
-         sendLog(`[AGENT-MODEL] Local inference: ${isOllama ? "Ollama" : "llama-server"} → ${agentModel} (no API key)`);
+         sendLog(`[AGENT-MODEL] Local inference: ${isOllama ? "Ollama" : "llama-server"} • ${agentModel} (no API key)`);
        } else {
-         sendLog(`[AGENT-MODEL] GLM-5.2 via Z.ai API → ${agentModel}`);
+         sendLog(`[AGENT-MODEL] GLM-5.2 via Z.ai API • ${agentModel}`);
        }
 
        const oaiTools = tools.map((t: any) => ({
@@ -4985,7 +5021,7 @@ User Request: ${prompt}` }] }
                const rpcResult = await composioMcpRpc("tools/call", { name: originalTool.name, arguments: args });
                resultVal = rpcResult?.result || rpcResult;
              }
-             sendLog(`[MCP-EXEC-SUCCESS] ${fn.name} → ${JSON.stringify(resultVal?.content || resultVal).substring(0, 150)}`);
+             sendLog(`[MCP-EXEC-SUCCESS] ${fn.name} • ${JSON.stringify(resultVal?.content || resultVal).substring(0, 150)}`);
            } catch (execErr: any) {
              resultVal = { error: execErr.message };
              sendLog(`[MCP-EXEC-FAILED] ${fn.name}: ${execErr.message}`);
@@ -5008,7 +5044,7 @@ User Request: ${prompt}` }] }
 
      // ── Gemini path ─────────────────────────────────────────────────────────
      } else {
-       sendLog(`[AGENT-MODEL] Gemini → ${agentModel}`);
+       sendLog(`[AGENT-MODEL] Gemini • ${agentModel}`);
 
        while (loopCount < 12 && !completed) {
          loopCount++;
@@ -5113,12 +5149,12 @@ User Request: ${prompt}` }] }
 app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, res) => {
   const authHeader = req.headers.authorization || req.headers["x-api-key"] || req.headers["api-key"] || req.query.key;
   const configuredKey = process.env.VORTEX_LIVE_API_KEY;
-  // Sandbox key is opt-in only via env flag ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ never hardcoded, never a silent fallback.
+  // Sandbox key is opt-in only via env flag — never hardcoded, never a silent fallback.
   const sandboxKeyAllowed = process.env.VORTEX_ALLOW_SANDBOX_KEY === "true";
   const sandboxKey = process.env.VORTEX_SANDBOX_API_KEY || "";
 
   if (!configuredKey) {
-    console.error("[vortex] VORTEX_LIVE_API_KEY is not set ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ refusing all agent-deploy requests until configured.");
+    console.error("[vortex] VORTEX_LIVE_API_KEY is not set — refusing all agent-deploy requests until configured.");
     return res.status(503).json({ error: "Server misconfigured: VORTEX_LIVE_API_KEY is not set." });
   }
 
@@ -5191,7 +5227,7 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, 
 
   buildLogs.push(customHtml ? "[vortex-agent] Using native provided HTML App payload." : "[vortex-agent] Compiling full-stack assets natively on Vortex Cloud Edge.");
   buildLogs.push("[vortex-agent] Native Edge domain assignment provisioned.");
-  buildLogs.push("[vortex-agent] Deployment successful! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ");
+  buildLogs.push("[vortex-agent] Deployment successful! 🎉");
   
   // Create an automated live deployment
   const newDep: Deployment = {
@@ -5205,7 +5241,7 @@ app.post("/api/vortex/agent/deploy", express.json({limit: '50mb'}), async (req, 
     buildLogs,
     deployedHtml: customHtml || `
       <div class="min-h-screen bg-[#070707] text-[#e5e5e5] flex flex-col justify-center items-center font-sans p-6 text-center">
-        <h2 class="text-3xl font-bold mb-4 text-emerald-400">Agent Deployed to Live Edge! ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ</h2>
+        <h2 class="text-3xl font-bold mb-4 text-emerald-400">Agent Deployed to Live Edge! 🚀</h2>
         <p class="text-gray-400 max-w-lg">This natively orchestrated distributed network application was automatically deployed by an AI Agent interacting directly through the Vortex Live API Key. True zero-touch production pipeline achieved.</p>
         <code class="mt-6 block bg-black border border-gray-800 p-2 rounded text-emerald-500 font-mono text-sm">commit: ${commitHashHex}</code>
       </div>
