@@ -32,6 +32,25 @@ it cannot run the backend (no Node/Docker/persistent processes there).
 
 Vortex is a self-contained, high-performance developer platform, integrated cloud orchestration infrastructure, and native database engine. It contains a fully functional **Model Context Protocol (MCP) Server** running natively on its backend that allows automated AI agents (like Grok, Claude, or Gemini) to programmatically deploy full-stack applications, register custom domains, query databases, audit firewall logs, and scale system resources instantly.
 
+## 📦 Self-contained mode (zero keys)
+
+Clone, build, run — no `.env`, no Supabase, no Vercel required:
+
+```bash
+npm install && npm run build && npm run start
+# or: docker build -t monico-labs . && docker run -p 3000:3000 monico-labs
+```
+
+What you get with zero keys:
+- **Embedded SQLite** (`./data/vortex.db`) backs every database MCP tool with real SQL — no Postgres/Supabase needed.
+- **Self-served deployments**: `deploy_local` writes to `./sites/<name>/`, served at `/sites/<name>/` by the same server. `deploy_project` falls back to this automatically when no `VERCEL_API_TOKEN` is set.
+- **Ephemeral MCP auth**: a random Bearer <redacted> is generated at boot and printed to the console (set `VRX_MCP_AUTH_TOKEN` for a stable one).
+- **Honest degradation**: `GET /api/health` lists exactly which integrations are degraded and why; the dashboard banner shows it too.
+
+To unlock more, set keys (all optional): `VORTEX_DATABASE_URL` (real Postgres),
+`VERCEL_API_TOKEN` (public `*.vercel.app` deploys), `GOOGLE_API_KEY`/`GEMINI_API_KEY`
+(AI features). See CHROMEBOOK.md for 24/7 self-hosting on a Chromebook.
+
 ---
 
 ## ⚙️ Environment Variables & Configuration

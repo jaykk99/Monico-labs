@@ -79,7 +79,7 @@ const vortexPgPool: PgPool | null = process.env.VORTEX_DATABASE_URL
 if (vortexPgPool) {
   console.log("[vortex-db] VORTEX_DATABASE_URL detected (optional override) — real Postgres backend enabled for MCP database tools.");
 } else {
-  console.log(`[vortex-db] No VORTEX_DATABASE_URL — using embedded SQLite at ${vortexDbPath()} (no external database needed).`);
+  console.log(`[vortex-db] No VORTEX_DATABASE_URL — using embedded SQLite at ${vortexDbPath()} for the database MCP tools (no external database needed).`);
 }
 
 // Boot summary: what self-contained mode is actually running with.
@@ -175,7 +175,7 @@ const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || "";
 if (VERCEL_API_TOKEN) {
   console.log("[vortex-deploy] VERCEL_API_TOKEN detected — real Vercel deployments enabled.");
 } else {
-  console.warn("[vortex-deploy] VERCEL_API_TOKEN not set — deployment MCP tools will report an error instead of simulating a deploy.");
+  console.log(`[vortex-deploy] VERCEL_API_TOKEN not set — deployments are self-served locally at /sites/ (deployment MCP tools report an error instead of simulating a Vercel deploy).`);
 }
 
 function vortexVercelTeamQS(extra: string = ""): string {
@@ -253,9 +253,55 @@ async function vortexVercelDeploy(prj: Project, html: string): Promise<{ ok: boo
   const url = `https://${vprj.name}.vercel.app`;
   return { ok: true, deploymentId: dep.json.id, url, status: dep.json.readyState || dep.json.status };
 }
+
+/**
+ * Self-served local deployment: writes the site's HTML to ./sites/<slug>/
+ * and serves it from this server at /sites/<slug>/. No Vercel, no keys.
+ * Pair with the localtunnel helper (or any tunnel) for a public URL.
+ */
+function vortexSiteSlug(prj: Project): string {
+  return (prj.name || prj.id || "site")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50) || "site";
+}
+
+async function vortexLocalDeploy(
+  prj: Project,
+  html: string
+): Promise<{ ok: boolean; deploymentId?: string; url?: string; error?: string; status?: string }> {
+  try {
+    const slug = vortexSiteSlug(prj);
+    const dir = path.join(SITES_DIR, slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), html, "utf-8");
+    const port = Number(process.env.VORTEX_PORT || process.env.PORT || 3000);
+    return {
+      ok: true,
+      deploymentId: `local-${Date.now()}`,
+      url: `/sites/${slug}/`,
+      status: `ready (local — http://localhost:${port}/sites/${slug}/ ; expose publicly with a tunnel)`,
+    };
+  } catch (err: any) {
+    return { ok: false, error: `Local deploy failed: ${err?.message || err}` };
+  }
+}
 const firestoreEnabled = () => db !== null;
 
 import localtunnel from "localtunnel";
+
+// Embedded SQLite mirror (better-sqlite3) — lazily-safe: if better-sqlite3
+// can't load, sqliteAvailable() is false and call sites fall back gracefully.
+// Only the non-colliding helpers are imported; the DB tools use the
+// first-class vortex-sqlite engine (node:sqlite) above.
+import {
+  sqliteAvailable,
+  sqliteLoadError,
+  sqliteDbPath,
+  sqliteSaveAppState,
+  sqliteLoadAppState,
+} from "./server/sqlite-db";
 
 dotenv.config();
 
@@ -287,6 +333,14 @@ if (totalMemMB < 3000 || cpuCores <= 2) {
 
 app.use(cors());
 app.use(express.json());
+
+// Self-served deployments: static sites deployed via deploy_local live here,
+// served directly by this server — no Vercel, no external host required.
+const SITES_DIR = path.join(process.cwd(), "sites");
+try {
+  fs.mkdirSync(SITES_DIR, { recursive: true });
+} catch { /* read-only fs: serving still works for existing dirs */ }
+app.use("/sites", express.static(SITES_DIR));
 
 // Real API request log — feeds /api/analytics with genuine traffic numbers
 // instead of a fabricated sine-wave. Bounded ring buffer, in-memory only.
@@ -331,6 +385,33 @@ app.get("/api/metrics", (req, res) => {
     totalRam: os.totalmem() / (1024 * 1024),
     currentCpu: lastMetric.cpu,
     currentRam: lastMetric.ram
+  });
+});
+
+// Self-containment status: what runs locally vs what needs a key.
+// Zero-key boot is expected to be fully "ok" — anything degraded is listed
+// honestly here and in the UI banner so nothing silently pretends to work.
+app.get("/api/health", (_req, res) => {
+  const degraded: string[] = [];
+  if (!process.env.VERCEL_API_TOKEN) degraded.push("vercel-deploy");
+  if (!process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY) degraded.push("ai");
+  if (!process.env.VORTEX_DATABASE_URL) degraded.push("postgres");
+  if (!sqliteAvailable()) degraded.push("sqlite");
+  res.json({
+    ok: true,
+    version: "1.0.0-selfcontained",
+    selfContained: true,
+    storage: sqliteAvailable() ? "sqlite" : "local-json",
+    sqlitePath: sqliteAvailable() ? sqliteDbPath() : null,
+    sqliteError: sqliteAvailable() ? null : sqliteLoadError(),
+    deployMode: process.env.VERCEL_API_TOKEN ? "vercel" : "local",
+    degraded,
+    notes: {
+      "vercel-deploy": "deploy_project serves locally at /sites/ instead of *.vercel.app",
+      "ai": "AI-assisted features disabled; everything else works",
+      "postgres": "using embedded SQLite - data lives in ./data/vortex.db",
+      "sqlite": "better-sqlite3 unavailable - using legacy JSON engine",
+    },
   });
 });
 
@@ -636,6 +717,16 @@ async function saveToCloudDB() {
   //    and must never be blocked by an unavailable cloud backend.
   vortexSaveState(dataToSave);
 
+  // 1b) Mirror into embedded SQLite (transactional - survives crashes that can
+  //     corrupt the JSON file mid-write). Best-effort; never blocks the save.
+  if (sqliteAvailable()) {
+    try {
+      sqliteSaveAppState(dataToSave);
+    } catch (err) {
+      console.error("[vortex-db] SQLite state mirror failed:", (err as Error)?.message || err);
+    }
+  }
+
   // 2) Optionally mirror to Firestore when cloud credentials are configured.
   if (firestoreEnabled() && db) {
     try {
@@ -654,12 +745,40 @@ async function saveToCloudDB() {
 async function loadFromCloudDB() {
   let loaded: any = null;
 
-  // 1) Embedded SQLite is the default durable store — always available, no cloud dependency.
+  // 0) Embedded SQLite is the default durable store — always available, no cloud dependency.
+  //    Try the first-class vortex-sqlite backend, then the lazily-safe
+  //    server/sqlite-db mirror (different table, same file).
   loaded = vortexLoadState();
-  if (loaded) console.log("[vortex-db] State restored from embedded SQLite.");
+  if (loaded) {
+    console.log("[vortex-db] State restored from embedded SQLite.");
+  } else if (sqliteAvailable()) {
+    try {
+      const fromSqlite = sqliteLoadAppState();
+      if (fromSqlite) {
+        loaded = fromSqlite;
+        console.log("[vortex-db] State restored from embedded SQLite mirror (data/vortex.db).");
+      }
+    } catch (err) {
+      console.error("[vortex-db] SQLite mirror read failed, trying JSON file:", (err as Error)?.message || err);
+    }
+  }
   // One-time legacy migration: a leftover vortex_local_db.json from older builds is
   // folded into SQLite on first run so nothing is silently lost.
-  else if (vortexImportLegacyDb(LOCAL_DB_FILE_PATH)) { loaded = vortexLoadState(); }
+  if (!loaded && vortexImportLegacyDb(LOCAL_DB_FILE_PATH)) { loaded = vortexLoadState(); }
+  // 1) Load from the local JSON file — always available, no cloud dependency.
+  if (!loaded) {
+    try {
+      if (fs.existsSync(LOCAL_DB_FILE_PATH)) {
+        const localData = fs.readFileSync(LOCAL_DB_FILE_PATH, "utf-8");
+        if (localData.trim()) {
+          loaded = JSON.parse(localData);
+          console.log("[vortex-db] State restored from local file (vortex_local_db.json).");
+        }
+      }
+    } catch (err) {
+      console.error("[vortex-db] Local DB read error, continuing with defaults:", (err as Error)?.message || err);
+    }
+  }
 
   // 2) If Firestore is enabled, prefer the cloud copy when it exists.
   if (firestoreEnabled() && db) {
@@ -2425,7 +2544,7 @@ const mcpServer = new McpServer({
   version: "1.0.0"
 });
 
-mcpServer.tool("deploy_project", "Deploys a project — local-first: it is served by this Vortex host when no VERCEL_API_TOKEN is set, and published as a real Vercel deployment when it is. Use publish_deployment_ipfs for a public IPFS link of a static deployment.", {
+mcpServer.tool("deploy_project", "Deploys a project — local-first: it is served by this Vortex host when no VERCEL_API_TOKEN is set, and published as a real Vercel deployment when it is. Use deploy_local for the built-in static host (./sites/), or publish_deployment_ipfs for a public IPFS link of a static deployment.", {
   projectId: z.string().optional(),
   html: z.string().optional(),
   commitMessage: z.string().optional()
@@ -2495,6 +2614,37 @@ mcpServer.tool("deploy_project", "Deploys a project — local-first: it is serve
    return { content: [{ type: "text", text: `Deployment successful — served locally by this Vortex host at ${localUrl} (no VERCEL_API_TOKEN set; set it to also publish to Vercel, or use publish_deployment_ipfs for a public IPFS link).` }] };
 });
 
+mcpServer.tool("deploy_local", "Deploys a project's HTML to this server's built-in static host (./sites/<name>/), served at /sites/<name>/. Zero keys, zero config — the self-contained alternative to deploy_project. Expose publicly with the tunnel helper or any reverse proxy.", {
+  projectId: z.string().optional(),
+  html: z.string().optional(),
+  commitMessage: z.string().optional()
+}, async ({ projectId, html, commitMessage }) => {
+   const prj = projectId ? projects.find(p => p.id === projectId) : projects[0];
+   if (!prj) return { content: [{ type: "text", text: "Error: No projects in workspace." }] };
+
+   const deployedHtml = html || `<div style="text-align:center;font-family:sans-serif;padding:3rem;"><h1>Deployed locally by Monico Labs</h1></div>`;
+   const local = await vortexLocalDeploy(prj, deployedHtml);
+   if (!local.ok) {
+     return { content: [{ type: "text", text: `Error: Local deployment failed: ${local.error}` }] };
+   }
+   const newDep: Deployment = {
+     id: `dep-${generateId()}`,
+     projectId: prj.id,
+     status: "ready",
+     previewUrl: local.url!,
+     createdAt: new Date().toISOString(),
+     commitMessage: commitMessage || "Local MCP deployment",
+     commitHash: Math.random().toString(16).substring(2, 9),
+     buildLogs: ["[vortex-agent] Self-served local deployment to ./sites/."],
+     deployedHtml,
+   };
+   deployments.unshift(newDep);
+   prj.activeDeploymentId = newDep.id;
+   saveToCloudDB();
+   return {
+     content: [{ type: "text", text: `Deployed locally. Live at: ${local.url} (${local.status})` }]
+   };
+});
 mcpServer.tool("publish_deployment_ipfs", "Publishes a STATIC HTML deployment to IPFS and returns public gateway URLs. Static-only: the deployment must carry an HTML payload (deployments with dynamic backends cannot work on IPFS and are refused). Availability caveat: this device serves the content while the app is open and public gateways are asked to cache a copy, but there is no permanent guarantee without paid pinning.", {
   projectId: z.string(),
   deploymentId: z.string().optional()

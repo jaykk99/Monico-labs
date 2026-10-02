@@ -1,6 +1,7 @@
 // Post-build helper: tsc emits CommonJS .js files under dist/ (server.js,
-// vortex-sqlite.js, vortex-ipfs.js, src/**/*.js). Rename EVERY emitted .js file
-// to .cjs so they load as CommonJS even though package.json is "type": "module".
+// server/*.js, vortex-sqlite.js, vortex-ipfs.js, src/**/*.js). Rename EVERY
+// emitted .js file to .cjs so they load as CommonJS even though
+// package.json is "type": "module".
 // EXCLUDED: dist/assets/** — the Vite client bundle must stay .js.
 const fs = require("fs");
 const path = require("path");
