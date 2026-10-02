@@ -18,6 +18,7 @@
   "extends": "./tsconfig.json",
   "include": [
     "server.ts",
+    "server/sqlite-db.ts",
     "src/types.ts",
     "src/types/**/*"
   ]

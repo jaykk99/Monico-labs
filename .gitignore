@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Self-contained runtime data (never commit)
+/data/
+/sites/
+*.db
+*.db-wal
+*.db-shm

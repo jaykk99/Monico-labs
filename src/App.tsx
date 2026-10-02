@@ -1,7 +1,13 @@
 import BlueprintEditor from './BlueprintEditor';
+import SelfContainedBanner from './SelfContainedBanner';
 
 function App() {
-  return <BlueprintEditor />;
+  return (
+    <>
+      <SelfContainedBanner />
+      <BlueprintEditor />
+    </>
+  );
 }
 
 export default App;

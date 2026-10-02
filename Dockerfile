@@ -1,7 +1,12 @@
 FROM node:20-slim
 
 # Install Chromium and all deps needed for headless Chrome
+# Build tools for native modules (better-sqlite3 falls back to source build
+# when no prebuilt binary matches the platform)
 RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
     chromium \
     chromium-sandbox \
     libglib2.0-0 \
