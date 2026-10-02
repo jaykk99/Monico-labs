@@ -19,6 +19,8 @@
   "include": [
     "server.ts",
     "server/sqlite-db.ts",
+    "vortex-sqlite.ts",
+    "vortex-ipfs.ts",
     "src/types.ts",
     "src/types/**/*"
   ]

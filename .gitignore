@@ -9,7 +9,9 @@ coverage/
 
 # Self-contained runtime data (never commit)
 /data/
+data/
 /sites/
+dist-electron/
 *.db
 *.db-wal
 *.db-shm
