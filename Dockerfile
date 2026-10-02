@@ -17,7 +17,12 @@
 #   -e ENABLE_TUNNEL=true                 # default: off; exposes localhost via localtunnel
 #   -e GEMINI_API_KEY=...                 # default: unset; AI features degrade honestly
 
-FROM node:20-slim
+# node:22+ is REQUIRED: server/vortex-sqlite.ts imports the built-in
+# `node:sqlite` module, which does not exist on node:20 (boot crashes with
+# ERR_MODULE_NOT_FOUND). On node 22 it is behind --experimental-sqlite;
+# node:22-slim (bookworm) is used instead of node:24-slim so the Chromium
+# apt package names below stay valid.
+FROM node:22-slim
 
 # Install Chromium and all deps needed for headless Chrome (no download at runtime).
 # Build tools for native modules (better-sqlite3 falls back to source build
@@ -48,7 +53,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    NODE_OPTIONS=--experimental-sqlite
 
 WORKDIR /app
 

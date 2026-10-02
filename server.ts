@@ -2539,12 +2539,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { z } from "zod";
 
-const mcpServer = new McpServer({
-  name: "vortex-mcp-server",
-  version: "1.0.0"
-});
+function createMcpServer(): McpServer {
+  const server = new McpServer({
+    name: "vortex-mcp-server",
+    version: "1.0.0"
+  });
 
-mcpServer.tool("deploy_project", "Deploys a project — local-first: it is served by this Vortex host when no VERCEL_API_TOKEN is set, and published as a real Vercel deployment when it is. Use deploy_local for the built-in static host (./sites/), or publish_deployment_ipfs for a public IPFS link of a static deployment.", {
+server.tool("deploy_project", "Deploys a project — local-first: it is served by this Vortex host when no VERCEL_API_TOKEN is set, and published as a real Vercel deployment when it is. Use deploy_local for the built-in static host (./sites/), or publish_deployment_ipfs for a public IPFS link of a static deployment.", {
   projectId: z.string().optional(),
   html: z.string().optional(),
   commitMessage: z.string().optional()
@@ -2614,7 +2615,7 @@ mcpServer.tool("deploy_project", "Deploys a project — local-first: it is serve
    return { content: [{ type: "text", text: `Deployment successful — served locally by this Vortex host at ${localUrl} (no VERCEL_API_TOKEN set; set it to also publish to Vercel, or use publish_deployment_ipfs for a public IPFS link).` }] };
 });
 
-mcpServer.tool("deploy_local", "Deploys a project's HTML to this server's built-in static host (./sites/<name>/), served at /sites/<name>/. Zero keys, zero config — the self-contained alternative to deploy_project. Expose publicly with the tunnel helper or any reverse proxy.", {
+server.tool("deploy_local", "Deploys a project's HTML to this server's built-in static host (./sites/<name>/), served at /sites/<name>/. Zero keys, zero config — the self-contained alternative to deploy_project. Expose publicly with the tunnel helper or any reverse proxy.", {
   projectId: z.string().optional(),
   html: z.string().optional(),
   commitMessage: z.string().optional()
@@ -2645,7 +2646,7 @@ mcpServer.tool("deploy_local", "Deploys a project's HTML to this server's built-
      content: [{ type: "text", text: `Deployed locally. Live at: ${local.url} (${local.status})` }]
    };
 });
-mcpServer.tool("publish_deployment_ipfs", "Publishes a STATIC HTML deployment to IPFS and returns public gateway URLs. Static-only: the deployment must carry an HTML payload (deployments with dynamic backends cannot work on IPFS and are refused). Availability caveat: this device serves the content while the app is open and public gateways are asked to cache a copy, but there is no permanent guarantee without paid pinning.", {
+server.tool("publish_deployment_ipfs", "Publishes a STATIC HTML deployment to IPFS and returns public gateway URLs. Static-only: the deployment must carry an HTML payload (deployments with dynamic backends cannot work on IPFS and are refused). Availability caveat: this device serves the content while the app is open and public gateways are asked to cache a copy, but there is no permanent guarantee without paid pinning.", {
   projectId: z.string(),
   deploymentId: z.string().optional()
 }, async ({ projectId, deploymentId }) => {
@@ -2667,13 +2668,13 @@ mcpServer.tool("publish_deployment_ipfs", "Publishes a STATIC HTML deployment to
   return { content: [{ type: "text", text: JSON.stringify({ cid: r.cid, urls: r.urls, peerId: r.peerId, note: "Public via IPFS gateways. This device is the provider while the app is open; gateways were asked to cache a copy so the link survives this device going offline. No permanent guarantee without paid pinning." }, null, 2) }] };
 });
 
-mcpServer.tool("list_projects", "Lists all available projects in the vortex workspace.", {}, async () => {
+server.tool("list_projects", "Lists all available projects in the vortex workspace.", {}, async () => {
    return {
      content: [{ type: "text", text: JSON.stringify(projects, null, 2) }]
    };
 });
 
-mcpServer.tool("list_deployments", "Lists all deployments for a specific project.", {
+server.tool("list_deployments", "Lists all deployments for a specific project.", {
   projectId: z.string()
 }, async ({ projectId }) => {
    const deps = deployments.filter(d => d.projectId === projectId);
@@ -2682,13 +2683,13 @@ mcpServer.tool("list_deployments", "Lists all deployments for a specific project
    };
 });
 
-mcpServer.tool("get_metrics", "Get current real-time metrics of the server.", {}, async () => {
+server.tool("get_metrics", "Get current real-time metrics of the server.", {}, async () => {
    return {
      content: [{ type: "text", text: JSON.stringify(metricsHistory.slice(-10), null, 2) }]
    };
 });
 
-mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
+server.tool("create_project", "Creates a new project natively via MCP.", {
   name: z.string(),
   framework: z.string().optional(),
   repo: z.string().optional(),
@@ -2710,7 +2711,7 @@ mcpServer.tool("create_project", "Creates a new project natively via MCP.", {
    };
 });
 
-mcpServer.tool("query_database", "Runs a real SQL query against the project's database tables. Priority: VORTEX_DATABASE_URL -> real Postgres; else SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY -> Supabase execute_sql RPC (schema: vortex; reference tables by the logical name from create_database_table, auto-resolved to the physical table; for custom SQL query vortex.\"t_<projectId>_<tableName>\" directly). Otherwise it runs against the embedded SQLite database (SELECT/INSERT/UPDATE/DELETE).", {
+server.tool("query_database", "Runs a real SQL query against the project's database tables. Priority: VORTEX_DATABASE_URL -> real Postgres; else SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY -> Supabase execute_sql RPC (schema: vortex; reference tables by the logical name from create_database_table, auto-resolved to the physical table; for custom SQL query vortex.\"t_<projectId>_<tableName>\" directly). Otherwise it runs against the embedded SQLite database (SELECT/INSERT/UPDATE/DELETE).", {
   projectId: z.string(),
   sql: z.string()
 }, async ({ projectId, sql }) => {
@@ -2760,7 +2761,7 @@ mcpServer.tool("query_database", "Runs a real SQL query against the project's da
   }
 });
 
-mcpServer.tool("delete_project", "Deletes a project.", {
+server.tool("delete_project", "Deletes a project.", {
   projectId: z.string()
 }, async ({ projectId }) => {
    const idx = projects.findIndex(p => p.id === projectId);
@@ -2770,7 +2771,7 @@ mcpServer.tool("delete_project", "Deletes a project.", {
    return { content: [{ type: "text", text: `Project ${projectId} deleted successfully` }] };
 });
 
-mcpServer.tool("edit_project", "Edits a project configuration.", {
+server.tool("edit_project", "Edits a project configuration.", {
   projectId: z.string(),
   name: z.string().optional(),
   repo: z.string().optional(),
@@ -2787,7 +2788,7 @@ mcpServer.tool("edit_project", "Edits a project configuration.", {
    return { content: [{ type: "text", text: `Project ${projectId} updated successfully` }] };
 });
 
-mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real custom domains (e.g. mysite.com) are actually attached via the Vercel domains API — you'll then need to point its DNS at Vercel. Bare names with no valid TLD just get you the real *.vercel.app URL.", {
+server.tool("add_domain", "Allocates or adds a domain to a project. Real custom domains (e.g. mysite.com) are actually attached via the Vercel domains API — you'll then need to point its DNS at Vercel. Bare names with no valid TLD just get you the real *.vercel.app URL.", {
   projectId: z.string(),
   domainName: z.string()
 }, async ({ projectId, domainName }) => {
@@ -2818,11 +2819,11 @@ mcpServer.tool("add_domain", "Allocates or adds a domain to a project. Real cust
    return { content: [{ type: "text", text: `Domain ${domainName} added to project ${projectId}.${note}` }] };
 });
 
-mcpServer.tool("list_workspaces", "Lists all workspaces.", {}, async () => {
+server.tool("list_workspaces", "Lists all workspaces.", {}, async () => {
    return { content: [{ type: "text", text: JSON.stringify(workspaces, null, 2) }] };
 });
 
-mcpServer.tool("create_workspace", "Creates a new workspace.", {
+server.tool("create_workspace", "Creates a new workspace.", {
   name: z.string()
 }, async ({ name }) => {
    const newWs: Workspace = {
@@ -2836,7 +2837,7 @@ mcpServer.tool("create_workspace", "Creates a new workspace.", {
    return { content: [{ type: "text", text: `Workspace ${name} created with ID: ${newWs.id}` }] };
 });
 
-mcpServer.tool("delete_workspace", "Deletes a workspace.", {
+server.tool("delete_workspace", "Deletes a workspace.", {
   workspaceId: z.string()
 }, async ({ workspaceId }) => {
    const idx = workspaces.findIndex(w => w.id === workspaceId);
@@ -2846,7 +2847,7 @@ mcpServer.tool("delete_workspace", "Deletes a workspace.", {
    return { content: [{ type: "text", text: `Workspace ${workspaceId} deleted successfully` }] };
 });
 
-mcpServer.tool("add_workspace_member", "Adds a member to a workspace.", {
+server.tool("add_workspace_member", "Adds a member to a workspace.", {
   workspaceId: z.string(),
   email: z.string(),
   role: z.string()
@@ -2858,11 +2859,11 @@ mcpServer.tool("add_workspace_member", "Adds a member to a workspace.", {
    return { content: [{ type: "text", text: `Member ${email} added to workspace ${workspaceId} as ${role}` }] };
 });
 
-mcpServer.tool("list_database_services", "Lists all database services.", {}, async () => {
+server.tool("list_database_services", "Lists all database services.", {}, async () => {
    return { content: [{ type: "text", text: JSON.stringify(databaseServices, null, 2) }] };
 });
 
-mcpServer.tool("create_database_service", "Creates a database service.", {
+server.tool("create_database_service", "Creates a database service.", {
   projectId: z.string(),
   serviceName: z.string(),
   type: z.string()
@@ -2882,7 +2883,7 @@ mcpServer.tool("create_database_service", "Creates a database service.", {
    return { content: [{ type: "text", text: `Database service ${serviceName} created` }] };
 });
 
-mcpServer.tool("trigger_deployment", "Triggers a REAL redeployment for a project on Vercel, reusing its last deployed content.", {
+server.tool("trigger_deployment", "Triggers a REAL redeployment for a project on Vercel, reusing its last deployed content.", {
   projectId: z.string(),
   commitMessage: z.string().optional()
 }, async ({ projectId, commitMessage }) => {
@@ -2916,18 +2917,18 @@ mcpServer.tool("trigger_deployment", "Triggers a REAL redeployment for a project
    return { content: [{ type: "text", text: `Deployment triggered successfully. Real, publicly live at: ${newDep.previewUrl}` }] };
 });
 
-mcpServer.tool("list_deployments_errors", "Gets deployment errors.", {
+server.tool("list_deployments_errors", "Gets deployment errors.", {
   projectId: z.string()
 }, async ({ projectId }) => {
    const deps = deployments.filter(d => d.projectId === projectId && d.status === "failed");
    return { content: [{ type: "text", text: JSON.stringify(deps, null, 2) }] };
 });
 
-mcpServer.tool("list_api_gateways", "Lists API Gateways.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_api_gateways", "Lists API Gateways.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(apiGateways[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("list_waf_rules", "Lists WAF Shield rules for a project.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_waf_rules", "Lists WAF Shield rules for a project.", { projectId: z.string() }, async ({ projectId }) => {
    const shield = shieldConfigs[projectId] || {
       sslMode: 'flexible',
       developmentMode: true,
@@ -2939,7 +2940,7 @@ mcpServer.tool("list_waf_rules", "Lists WAF Shield rules for a project.", { proj
    return { content: [{ type: "text", text: JSON.stringify(shield, null, 2) }] };
 });
 
-mcpServer.tool("add_waf_rule", "Adds a WAF Shield rule.", { projectId: z.string(), ipRange: z.string(), action: z.string() }, async ({ projectId, ipRange, action }) => {
+server.tool("add_waf_rule", "Adds a WAF Shield rule.", { projectId: z.string(), ipRange: z.string(), action: z.string() }, async ({ projectId, ipRange, action }) => {
    if (!shieldConfigs[projectId]) shieldConfigs[projectId] = {
       sslMode: 'flexible',
       developmentMode: true,
@@ -2960,11 +2961,11 @@ mcpServer.tool("add_waf_rule", "Adds a WAF Shield rule.", { projectId: z.string(
    return { content: [{ type: "text", text: `WAF rule added to project ${projectId}` }] };
 });
 
-mcpServer.tool("list_auth_users", "Lists native auth users.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_auth_users", "Lists native auth users.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(authUsers[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("configure_auth", "Configures self-host auth.", { projectId: z.string(), provider: z.string() }, async ({ projectId, provider }) => {
+server.tool("configure_auth", "Configures self-host auth.", { projectId: z.string(), provider: z.string() }, async ({ projectId, provider }) => {
    if (!authConfigs[projectId]) authConfigs[projectId] = {
       jwtLifespan: 3600,
       allowSignup: true,
@@ -2978,32 +2979,32 @@ mcpServer.tool("configure_auth", "Configures self-host auth.", { projectId: z.st
    return { content: [{ type: "text", text: `Auth configured for ${provider}` }] };
 });
 
-mcpServer.tool("import_git_repo", "Imports a git repo.", { projectId: z.string(), repoUrl: z.string() }, async ({ projectId, repoUrl }) => {
+server.tool("import_git_repo", "Imports a git repo.", { projectId: z.string(), repoUrl: z.string() }, async ({ projectId, repoUrl }) => {
    const prj = projects.find(p => p.id === projectId);
    if (prj) { prj.repo = repoUrl; saveToCloudDB(); }
    return { content: [{ type: "text", text: `Imported git repo ${repoUrl} to project ${projectId}` }] };
 });
 
-mcpServer.tool("view_git_commits", "Views git commits for a project.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("view_git_commits", "Views git commits for a project.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(gitRepos[projectId]?.modified || [], null, 2) }] };
 });
 
-mcpServer.tool("list_realtime_channels", "Lists real-time channels.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_realtime_channels", "Lists real-time channels.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(realTimeChannels[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("create_storage_bucket", "Creates a storage bucket.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+server.tool("create_storage_bucket", "Creates a storage bucket.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!storageBuckets[projectId]) storageBuckets[projectId] = [];
    storageBuckets[projectId].push({ name, size: 0, files: [] });
    saveToCloudDB();
    return { content: [{ type: "text", text: `Bucket ${name} created` }] };
 });
 
-mcpServer.tool("list_storage_buckets", "Lists storage buckets.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_storage_buckets", "Lists storage buckets.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(storageBuckets[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("list_composio_connectors", "Lists REAL connected third-party integrations (Gmail, GitHub, Slack, etc.) from your live Composio account.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_composio_connectors", "Lists REAL connected third-party integrations (Gmail, GitHub, Slack, etc.) from your live Composio account.", { projectId: z.string() }, async ({ projectId }) => {
    if (COMPOSIO_API_KEY) {
      const res = await vortexComposioFetch(`/connected_accounts`);
      if (res.ok) {
@@ -3021,7 +3022,7 @@ mcpServer.tool("list_composio_connectors", "Lists REAL connected third-party int
    return { content: [{ type: "text", text: JSON.stringify(composioConnectors[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("toggle_composio_connector", "Enables/disables a REAL Composio connected account.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
+server.tool("toggle_composio_connector", "Enables/disables a REAL Composio connected account.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
    if (COMPOSIO_API_KEY) {
      // Composio connected accounts don't have a simple enable/disable toggle — the real lifecycle
      // is delete (disconnect) vs create (reconnect via OAuth). We treat "toggle off" as a real disconnect.
@@ -3037,11 +3038,11 @@ mcpServer.tool("toggle_composio_connector", "Enables/disables a REAL Composio co
    return { content: [{ type: "text", text: `Toggled connector ${connectorId}` }] };
 });
 
-mcpServer.tool("list_api_keys", "Lists API Keys.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_api_keys", "Lists API Keys.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(apiKeys[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("create_api_key", "Creates an API Key.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+server.tool("create_api_key", "Creates an API Key.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!apiKeys[projectId]) apiKeys[projectId] = [];
    const newKey: ApiKey = {
      id: `key-${generateId()}`,
@@ -3056,14 +3057,14 @@ mcpServer.tool("create_api_key", "Creates an API Key.", { projectId: z.string(),
    return { content: [{ type: "text", text: `Created API key ${name} with token: ${newKey.secret}` }] };
 });
 
-mcpServer.tool("delete_api_key", "Deletes an API Key.", { projectId: z.string(), keyId: z.string() }, async ({ projectId, keyId }) => {
+server.tool("delete_api_key", "Deletes an API Key.", { projectId: z.string(), keyId: z.string() }, async ({ projectId, keyId }) => {
    if (!apiKeys[projectId]) return { content: [{ type: "text", text: "Project not found" }] };
    apiKeys[projectId] = apiKeys[projectId].filter(k => k.id !== keyId);
    saveToCloudDB();
    return { content: [{ type: "text", text: `Deleted API key ${keyId}` }] };
 });
 
-mcpServer.tool("list_database_tables", "Lists database tables for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_database_tables", "Lists database tables for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string() }, async ({ projectId }) => {
    if (!vortexPgPool) {
      const tables = sqliteListTables(projectId);
      return { content: [{ type: "text", text: JSON.stringify(tables.map(t => ({ table_name: t.table_name, physical_name: t.physical_name, row_count: t.row_count, source: "sqlite" })), null, 2) }] };
@@ -3076,7 +3077,7 @@ mcpServer.tool("list_database_tables", "Lists database tables for this project (
    return { content: [{ type: "text", text: JSON.stringify(res.rows, null, 2) }] };
 });
 
-mcpServer.tool("create_database_table", "Creates a database table for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+server.tool("create_database_table", "Creates a database table for this project (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!vortexPgPool) {
      const r = sqliteCreateTable(projectId, name);
      if (!r.created) {
@@ -3104,7 +3105,7 @@ mcpServer.tool("create_database_table", "Creates a database table for this proje
    return { content: [{ type: "text", text: `Created real database table '${name}' (Postgres table vortex."${physical}")` }] };
 });
 
-mcpServer.tool("insert_database_record", "Inserts a record into a database table (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
+server.tool("insert_database_record", "Inserts a record into a database table (real Postgres when VORTEX_DATABASE_URL is set, otherwise the embedded SQLite database).", { projectId: z.string(), tableName: z.string(), data: z.string() }, async ({ projectId, tableName, data }) => {
    if (!vortexPgPool) {
      let parsed: any;
      try {
@@ -3148,18 +3149,18 @@ mcpServer.tool("insert_database_record", "Inserts a record into a database table
    return { content: [{ type: "text", text: `Inserted record into ${tableName} (id: ${res.rows[0].id})` }] };
 });
 
-mcpServer.tool("list_shield_incidents", "Lists WAF Shield incidents.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_shield_incidents", "Lists WAF Shield incidents.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(baseIncidents, null, 2) }] };
 });
 
 // Git Operations
-mcpServer.tool("clone_git_repo", "Pull down an existing repository.", { projectId: z.string(), repoUrl: z.string() }, async ({ projectId, repoUrl }) => {
+server.tool("clone_git_repo", "Pull down an existing repository.", { projectId: z.string(), repoUrl: z.string() }, async ({ projectId, repoUrl }) => {
    gitRepos[projectId] = { url: repoUrl, branch: "main", status: "cloned", modified: [], untracked: [] };
    saveToCloudDB();
    return { content: [{ type: "text", text: `Cloned repo ${repoUrl} for project ${projectId}` }] };
 });
 
-mcpServer.tool("create_git_branch", "Create a new development branch.", { projectId: z.string(), branchName: z.string() }, async ({ projectId, branchName }) => {
+server.tool("create_git_branch", "Create a new development branch.", { projectId: z.string(), branchName: z.string() }, async ({ projectId, branchName }) => {
    if (gitRepos[projectId]) {
        gitRepos[projectId].branch = branchName;
        saveToCloudDB();
@@ -3167,11 +3168,11 @@ mcpServer.tool("create_git_branch", "Create a new development branch.", { projec
    return { content: [{ type: "text", text: `Created branch ${branchName} in project ${projectId}` }] };
 });
 
-mcpServer.tool("get_git_status", "Check untracked or modified files.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("get_git_status", "Check untracked or modified files.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(gitRepos[projectId] || { modified: [], untracked: [] }, null, 2) }] };
 });
 
-mcpServer.tool("push_git_changes", "Deploy code directly via Git.", { projectId: z.string(), message: z.string() }, async ({ projectId, message }) => {
+server.tool("push_git_changes", "Deploy code directly via Git.", { projectId: z.string(), message: z.string() }, async ({ projectId, message }) => {
    if (gitRepos[projectId]) {
        gitRepos[projectId].modified = [];
        gitRepos[projectId].untracked = [];
@@ -3181,7 +3182,7 @@ mcpServer.tool("push_git_changes", "Deploy code directly via Git.", { projectId:
 });
 
 // Auth & Self-Hosting
-mcpServer.tool("update_auth_user", "Change user roles or metadata.", { projectId: z.string(), userId: z.string(), role: z.string() }, async ({ projectId, userId, role }) => {
+server.tool("update_auth_user", "Change user roles or metadata.", { projectId: z.string(), userId: z.string(), role: z.string() }, async ({ projectId, userId, role }) => {
    const allowedRoles = ["admin", "member", "viewer"] as const;
    if (!allowedRoles.includes(role as (typeof allowedRoles)[number])) {
        return { content: [{ type: "text", text: `Error: invalid role "${role}" — must be one of: ${allowedRoles.join(", ")}.` }] };
@@ -3197,7 +3198,7 @@ mcpServer.tool("update_auth_user", "Change user roles or metadata.", { projectId
    return { content: [{ type: "text", text: `Error: user ${userId} not found in project ${projectId}.` }] };
 });
 
-mcpServer.tool("delete_auth_user", "Revoke access and remove users.", { projectId: z.string(), userId: z.string() }, async ({ projectId, userId }) => {
+server.tool("delete_auth_user", "Revoke access and remove users.", { projectId: z.string(), userId: z.string() }, async ({ projectId, userId }) => {
    if (authUsers[projectId]) {
        authUsers[projectId] = authUsers[projectId].filter(u => u.id !== userId);
        saveToCloudDB();
@@ -3205,7 +3206,7 @@ mcpServer.tool("delete_auth_user", "Revoke access and remove users.", { projectI
    return { content: [{ type: "text", text: `Deleted user ${userId}` }] };
 });
 
-mcpServer.tool("generate_api_key", "Create secrets for external programmatic access.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+server.tool("generate_api_key", "Create secrets for external programmatic access.", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!apiKeys[projectId]) apiKeys[projectId] = [];
    const newKey: ApiKey = {
      id: `key-${generateId()}`,
@@ -3220,7 +3221,7 @@ mcpServer.tool("generate_api_key", "Create secrets for external programmatic acc
    return { content: [{ type: "text", text: `Generated API key: ${newKey.secret}` }] };
 });
 
-mcpServer.tool("revoke_api_key", "Invalidate leaked or old tokens.", { projectId: z.string(), keyId: z.string() }, async ({ projectId, keyId }) => {
+server.tool("revoke_api_key", "Invalidate leaked or old tokens.", { projectId: z.string(), keyId: z.string() }, async ({ projectId, keyId }) => {
    if (!apiKeys[projectId]) return { content: [{ type: "text", text: "Project not found" }] };
    apiKeys[projectId] = apiKeys[projectId].filter(k => k.id !== keyId);
    saveToCloudDB();
@@ -3228,7 +3229,7 @@ mcpServer.tool("revoke_api_key", "Invalidate leaked or old tokens.", { projectId
 });
 
 // WAF & Shield
-mcpServer.tool("remove_waf_rule", "Delete an active firewall rule.", { projectId: z.string(), ruleId: z.string() }, async ({ projectId, ruleId }) => {
+server.tool("remove_waf_rule", "Delete an active firewall rule.", { projectId: z.string(), ruleId: z.string() }, async ({ projectId, ruleId }) => {
    if (shieldConfigs[projectId]) {
        shieldConfigs[projectId].wafRules = shieldConfigs[projectId].wafRules.filter(r => r.id !== ruleId);
        saveToCloudDB();
@@ -3236,7 +3237,7 @@ mcpServer.tool("remove_waf_rule", "Delete an active firewall rule.", { projectId
    return { content: [{ type: "text", text: `Removed WAF rule ${ruleId}` }] };
 });
 
-mcpServer.tool("update_waf_rule", "Modify rule priorities or IP blocks.", { projectId: z.string(), ruleId: z.string(), action: z.string() }, async ({ projectId, ruleId, action }) => {
+server.tool("update_waf_rule", "Modify rule priorities or IP blocks.", { projectId: z.string(), ruleId: z.string(), action: z.string() }, async ({ projectId, ruleId, action }) => {
    if (shieldConfigs[projectId]) {
        const rule = shieldConfigs[projectId].wafRules.find(r => r.id === ruleId);
        if (rule) rule.action = action as any;
@@ -3245,11 +3246,11 @@ mcpServer.tool("update_waf_rule", "Modify rule priorities or IP blocks.", { proj
    return { content: [{ type: "text", text: `Updated WAF rule ${ruleId}` }] };
 });
 
-mcpServer.tool("get_waf_logs", "Stream traffic logs for security audits.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("get_waf_logs", "Stream traffic logs for security audits.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(baseIncidents, null, 2) }] };
 });
 
-mcpServer.tool("toggle_waf_mode", "Switch between 'Block' and 'Count' modes.", { projectId: z.string(), mode: z.string() }, async ({ projectId, mode }) => {
+server.tool("toggle_waf_mode", "Switch between 'Block' and 'Count' modes.", { projectId: z.string(), mode: z.string() }, async ({ projectId, mode }) => {
    if (shieldConfigs[projectId]) {
        shieldConfigs[projectId].securityLevel = mode as any;
        saveToCloudDB();
@@ -3258,7 +3259,7 @@ mcpServer.tool("toggle_waf_mode", "Switch between 'Block' and 'Count' modes.", {
 });
 
 // Real-Time & Storage
-mcpServer.tool("delete_storage_bucket", "Remove an empty or forced storage bucket.", { projectId: z.string(), bucketName: z.string() }, async ({ projectId, bucketName }) => {
+server.tool("delete_storage_bucket", "Remove an empty or forced storage bucket.", { projectId: z.string(), bucketName: z.string() }, async ({ projectId, bucketName }) => {
    if (storageBuckets[projectId]) {
       storageBuckets[projectId] = storageBuckets[projectId].filter(b => b.name !== bucketName);
       saveToCloudDB();
@@ -3266,7 +3267,7 @@ mcpServer.tool("delete_storage_bucket", "Remove an empty or forced storage bucke
    return { content: [{ type: "text", text: `Deleted storage bucket ${bucketName}` }] };
 });
 
-mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { projectId: z.string(), bucketName: z.string(), fileName: z.string(), sizeBytes: z.number().optional() }, async ({ projectId, bucketName, fileName, sizeBytes }) => {
+server.tool("upload_storage_file", "Push objects directly into a bucket.", { projectId: z.string(), bucketName: z.string(), fileName: z.string(), sizeBytes: z.number().optional() }, async ({ projectId, bucketName, fileName, sizeBytes }) => {
    const bucket = (storageBuckets[projectId] || []).find(b => b.name === bucketName);
    if (bucket) {
       bucket.files.push(fileName);
@@ -3278,7 +3279,7 @@ mcpServer.tool("upload_storage_file", "Push objects directly into a bucket.", { 
    return { content: [{ type: "text", text: `Uploaded ${fileName} to bucket ${bucketName}` }] };
 });
 
-mcpServer.tool("delete_storage_file", "Purge specific objects or assets.", { projectId: z.string(), bucketName: z.string(), fileName: z.string() }, async ({ projectId, bucketName, fileName }) => {
+server.tool("delete_storage_file", "Purge specific objects or assets.", { projectId: z.string(), bucketName: z.string(), fileName: z.string() }, async ({ projectId, bucketName, fileName }) => {
    const bucket = (storageBuckets[projectId] || []).find(b => b.name === bucketName);
    if (bucket) {
       bucket.files = bucket.files.filter(f => f !== fileName);
@@ -3287,14 +3288,14 @@ mcpServer.tool("delete_storage_file", "Purge specific objects or assets.", { pro
    return { content: [{ type: "text", text: `Deleted ${fileName} from bucket ${bucketName}` }] };
 });
 
-mcpServer.tool("create_realtime_channel", "Initialize a new pub/sub topic.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
+server.tool("create_realtime_channel", "Initialize a new pub/sub topic.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
    if (!realTimeChannels[projectId]) realTimeChannels[projectId] = [];
    realTimeChannels[projectId].push({ name: channelName, subscribers: 0 });
    saveToCloudDB();
    return { content: [{ type: "text", text: `Created realtime channel ${channelName}` }] };
 });
 
-mcpServer.tool("close_realtime_channel", "Terminate active websocket connections.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
+server.tool("close_realtime_channel", "Terminate active websocket connections.", { projectId: z.string(), channelName: z.string() }, async ({ projectId, channelName }) => {
    if (realTimeChannels[projectId]) {
       realTimeChannels[projectId] = realTimeChannels[projectId].filter(c => c.name !== channelName);
       saveToCloudDB();
@@ -3303,14 +3304,14 @@ mcpServer.tool("close_realtime_channel", "Terminate active websocket connections
 });
 
 // Networking
-mcpServer.tool("create_api_gateway", "Deploy a new API proxy routing layer.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
+server.tool("create_api_gateway", "Deploy a new API proxy routing layer.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
    if (!apiGateways[projectId]) apiGateways[projectId] = [];
    apiGateways[projectId].push({ id: `gw-${generateId()}`, route });
    saveToCloudDB();
    return { content: [{ type: "text", text: `Created API gateway for route ${route}` }] };
 });
 
-mcpServer.tool("delete_api_gateway", "Teardown unused routing infrastructure.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
+server.tool("delete_api_gateway", "Teardown unused routing infrastructure.", { projectId: z.string(), route: z.string() }, async ({ projectId, route }) => {
    if (apiGateways[projectId]) {
       apiGateways[projectId] = apiGateways[projectId].filter(g => g.route !== route);
       saveToCloudDB();
@@ -3318,7 +3319,7 @@ mcpServer.tool("delete_api_gateway", "Teardown unused routing infrastructure.", 
    return { content: [{ type: "text", text: `Deleted API gateway route ${route}` }] };
 });
 
-mcpServer.tool("update_gateway_route", "Map new endpoints to backend services.", { projectId: z.string(), route: z.string(), target: z.string() }, async ({ projectId, route, target }) => {
+server.tool("update_gateway_route", "Map new endpoints to backend services.", { projectId: z.string(), route: z.string(), target: z.string() }, async ({ projectId, route, target }) => {
    const gw = (apiGateways[projectId] || []).find(g => g.route === route);
    if (gw) {
       gw.target = target;
@@ -3327,7 +3328,7 @@ mcpServer.tool("update_gateway_route", "Map new endpoints to backend services.",
    return { content: [{ type: "text", text: `Updated gateway route ${route} to ${target}` }] };
 });
 
-mcpServer.tool("configure_ssl_cert", "Bind custom domains and manage TLS.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
+server.tool("configure_ssl_cert", "Bind custom domains and manage TLS.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
    if (!sslCertificates[projectId]) sslCertificates[projectId] = [];
    sslCertificates[projectId].push({ domain, status: "active", expiresAt: new Date(Date.now() + 90*24*60*60*1000).toISOString() });
    saveToCloudDB();
@@ -3335,12 +3336,12 @@ mcpServer.tool("configure_ssl_cert", "Bind custom domains and manage TLS.", { pr
 });
 
 // Integrations (Composio)
-mcpServer.tool("get_connector_status", "Check if a specific plugin is healthy.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
+server.tool("get_connector_status", "Check if a specific plugin is healthy.", { projectId: z.string(), connectorId: z.string() }, async ({ projectId, connectorId }) => {
    const conn = (composioConnectors[projectId] || []).find(c => c.id === connectorId);
    return { content: [{ type: "text", text: JSON.stringify({ isConnected: conn?.isConnected || false }, null, 2) }] };
 });
 
-mcpServer.tool("configure_connector_auth", "Inject OAuth keys or credentials into integrations.", { projectId: z.string(), connectorId: z.string(), keys: z.string() }, async ({ projectId, connectorId, keys }) => {
+server.tool("configure_connector_auth", "Inject OAuth keys or credentials into integrations.", { projectId: z.string(), connectorId: z.string(), keys: z.string() }, async ({ projectId, connectorId, keys }) => {
    if (!composioConnectors[projectId]) composioConnectors[projectId] = [];
    const conn = composioConnectors[projectId].find(c => c.id === connectorId);
    if (!conn) {
@@ -3357,7 +3358,7 @@ mcpServer.tool("configure_connector_auth", "Inject OAuth keys or credentials int
    return { content: [{ type: "text", text: `Auth injected for connector '${connectorId}' in project '${projectId}'. Connection status set to active.` }] };
 });
 
-mcpServer.tool("trigger_connector_action", "Manually test a connected tool's function.", { projectId: z.string(), connectorId: z.string(), action: z.string() }, async ({ projectId, connectorId, action }) => {
+server.tool("trigger_connector_action", "Manually test a connected tool's function.", { projectId: z.string(), connectorId: z.string(), action: z.string() }, async ({ projectId, connectorId, action }) => {
    if (COMPOSIO_API_KEY) {
        try {
            const res = await vortexComposioFetch(`/actions/${action}/execute`, {
@@ -3390,7 +3391,7 @@ async function vortexEnsureBackupsTable(): Promise<void> {
   `);
 }
 
-mcpServer.tool("create_backup", "Trigger a REAL snapshot: dumps the actual contents of every real Postgres table registered for this project into a durable backup row.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("create_backup", "Trigger a REAL snapshot: dumps the actual contents of every real Postgres table registered for this project into a durable backup row.", { projectId: z.string() }, async ({ projectId }) => {
    if (!vortexPgPool) {
      return { content: [{ type: "text", text: "Error: No real database configured. Set VORTEX_DATABASE_URL to enable real backups." }] };
    }
@@ -3417,7 +3418,7 @@ mcpServer.tool("create_backup", "Trigger a REAL snapshot: dumps the actual conte
    return { content: [{ type: "text", text: `Created REAL backup ${backupId}: snapshotted ${reg.rows.length} table(s), ${rowCount} row(s) total, durably stored in Postgres.` }] };
 });
 
-mcpServer.tool("restore_backup", "REALLY restores a project's Postgres tables to the exact row contents captured in a prior create_backup snapshot (destructive: replaces current table contents).", { projectId: z.string(), backupId: z.string() }, async ({ projectId, backupId }) => {
+server.tool("restore_backup", "REALLY restores a project's Postgres tables to the exact row contents captured in a prior create_backup snapshot (destructive: replaces current table contents).", { projectId: z.string(), backupId: z.string() }, async ({ projectId, backupId }) => {
    if (!vortexPgPool) {
      return { content: [{ type: "text", text: "Error: No real database configured." }] };
    }
@@ -3454,7 +3455,7 @@ mcpServer.tool("restore_backup", "REALLY restores a project's Postgres tables to
    return { content: [{ type: "text", text: `Really restored project ${projectId} from backup ${backupId}: ${restoredTables} table(s), ${restoredRows} row(s) written back.` }] };
 });
 
-mcpServer.tool("list_backups", "View real recovery points (each backed by an actual Postgres snapshot) for a project.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_backups", "View real recovery points (each backed by an actual Postgres snapshot) for a project.", { projectId: z.string() }, async ({ projectId }) => {
    if (vortexPgPool) {
      await vortexEnsureBackupsTable();
      const res = await vortexPgPool.query(
@@ -3473,14 +3474,14 @@ mcpServer.tool("list_backups", "View real recovery points (each backed by an act
    return { content: [{ type: "text", text: JSON.stringify(backups[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("configure_backup_policy", "Set retention windows and cron schedules for automated backups.", { projectId: z.string(), schedule: z.string() }, async ({ projectId, schedule }) => {
+server.tool("configure_backup_policy", "Set retention windows and cron schedules for automated backups.", { projectId: z.string(), schedule: z.string() }, async ({ projectId, schedule }) => {
    backupPolicies[projectId] = schedule;
    saveToCloudDB();
    return { content: [{ type: "text", text: `Configured backup policy for project ${projectId} with schedule ${schedule}` }] };
 });
 
 // Logging & Observability
-mcpServer.tool("stream_logs", "Fetch REAL recent build/runtime log lines from the project's live Vercel deployment (snapshot, not a true live tail — call again for fresh lines).", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("stream_logs", "Fetch REAL recent build/runtime log lines from the project's live Vercel deployment (snapshot, not a true live tail — call again for fresh lines).", { projectId: z.string() }, async ({ projectId }) => {
    const latestDep = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""))[0];
    if (!latestDep?.vercelDeploymentId || !VERCEL_API_TOKEN) {
      return { content: [{ type: "text", text: `Error: No real Vercel deployment found for project ${projectId} yet — call deploy_project first.` }] };
@@ -3491,7 +3492,7 @@ mcpServer.tool("stream_logs", "Fetch REAL recent build/runtime log lines from th
    return { content: [{ type: "text", text: lines.length ? lines.join("\n") : `No log events yet for deployment ${latestDep.vercelDeploymentId}.` }] };
 });
 
-mcpServer.tool("query_historical_logs", "Search REAL past build/runtime logs across the project's recent Vercel deployments for a text match.", { projectId: z.string(), query: z.string() }, async ({ projectId, query }) => {
+server.tool("query_historical_logs", "Search REAL past build/runtime logs across the project's recent Vercel deployments for a text match.", { projectId: z.string(), query: z.string() }, async ({ projectId, query }) => {
    const deps = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||"")).slice(0, 5);
    if (!deps.length || !VERCEL_API_TOKEN) {
      return { content: [{ type: "text", text: `Error: No real Vercel deployments found for project ${projectId} yet.` }] };
@@ -3510,7 +3511,7 @@ mcpServer.tool("query_historical_logs", "Search REAL past build/runtime logs acr
    return { content: [{ type: "text", text: matches.length ? matches.join("\n") : `No log lines matched "${query}" in the last ${deps.length} real deployments.` }] };
 });
 
-mcpServer.tool("get_error_analytics", "Aggregate REAL recent build/runtime error counts from the project's Vercel deployments.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("get_error_analytics", "Aggregate REAL recent build/runtime error counts from the project's Vercel deployments.", { projectId: z.string() }, async ({ projectId }) => {
    const deps = [...deployments].filter(d => d.projectId === projectId && d.vercelDeploymentId).sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||"")).slice(0, 5);
    const failedCount = deployments.filter(d => d.projectId === projectId && d.status === "failed").length;
    let stderrCount = 0;
@@ -3524,19 +3525,19 @@ mcpServer.tool("get_error_analytics", "Aggregate REAL recent build/runtime error
    return { content: [{ type: "text", text: JSON.stringify({ failedDeployments: failedCount, recentStderrLogLines: stderrCount, deploymentsScanned: deps.length }, null, 2) }] };
 });
 
-mcpServer.tool("export_audit_trail", "Generate a compliance CSV/JSON showing who executed what command and when.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("export_audit_trail", "Generate a compliance CSV/JSON showing who executed what command and when.", { projectId: z.string() }, async ({ projectId }) => {
    return { content: [{ type: "text", text: JSON.stringify(auditTrails[projectId] || [], null, 2) }] };
 });
 
 // CI/CD & Environment Management
-mcpServer.tool("create_environment", "Spin up entirely new isolated stages (e.g., staging, production).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
+server.tool("create_environment", "Spin up entirely new isolated stages (e.g., staging, production).", { projectId: z.string(), name: z.string() }, async ({ projectId, name }) => {
    if (!environments[projectId]) environments[projectId] = [];
    if (!environments[projectId].includes(name)) environments[projectId].push(name);
    saveToCloudDB();
    return { content: [{ type: "text", text: `Created environment ${name} for project ${projectId}` }] };
 });
 
-mcpServer.tool("promote_build", "Seamlessly push configurations and code from staging to production.", { projectId: z.string(), buildId: z.string() }, async ({ projectId, buildId }) => {
+server.tool("promote_build", "Seamlessly push configurations and code from staging to production.", { projectId: z.string(), buildId: z.string() }, async ({ projectId, buildId }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    const dep = deployments.find(d => d.id === buildId && d.projectId === projectId) || deployments.find(d => d.id === buildId);
@@ -3553,7 +3554,7 @@ mcpServer.tool("promote_build", "Seamlessly push configurations and code from st
    return { content: [{ type: "text", text: `Promoted build "${dep.commitMessage}" (${dep.id}) to production for project "${prj.name}".` }] };
 });
 
-mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the project's live Vercel deployment (applies on next deploy).", { projectId: z.string(), key: z.string(), value: z.string() }, async ({ projectId, key, value }) => {
+server.tool("set_env_variable", "Injects a REAL environment variable into the project's live Vercel deployment (applies on next deploy).", { projectId: z.string(), key: z.string(), value: z.string() }, async ({ projectId, key, value }) => {
    if (!envVars[projectId]) envVars[projectId] = [];
    const existing = envVars[projectId].find(e => e.key === key);
    if (existing) existing.value = value; else envVars[projectId].push({ id: `env-${generateId()}`, key, value });
@@ -3583,7 +3584,7 @@ mcpServer.tool("set_env_variable", "Injects a REAL environment variable into the
    return { content: [{ type: "text", text: `Set environment variable ${key} in project ${projectId} (no live Vercel project yet — will attach once the project is deployed).` }] };
 });
 
-mcpServer.tool("list_env_variables", "View active environment variables (with secrets masked) — reconciled against the real live Vercel project when one exists.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_env_variables", "View active environment variables (with secrets masked) — reconciled against the real live Vercel project when one exists.", { projectId: z.string() }, async ({ projectId }) => {
    const envs = envVars[projectId] || [];
    const prj = projects.find(p => p.id === projectId);
    if (prj?.vercelProjectId && VERCEL_API_TOKEN) {
@@ -3596,7 +3597,7 @@ mcpServer.tool("list_env_variables", "View active environment variables (with se
 });
 
 // Scaling & Resource Tuning
-mcpServer.tool("scale_service", "Change the replica count, CPU allocations, or RAM limits for a service.", { projectId: z.string(), replicas: z.number() }, async ({ projectId, replicas }) => {
+server.tool("scale_service", "Change the replica count, CPU allocations, or RAM limits for a service.", { projectId: z.string(), replicas: z.number() }, async ({ projectId, replicas }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    (prj as any).replicaCount = replicas;
@@ -3607,13 +3608,13 @@ mcpServer.tool("scale_service", "Change the replica count, CPU allocations, or R
    return { content: [{ type: "text", text: `Scaled project "${prj.name}" to ${replicas} replica(s). ${ready} active deployment(s) affected. Autoscaling ceiling: ${autoScalingConfigs[projectId]}.` }] };
 });
 
-mcpServer.tool("configure_autoscaling", "Define rules to scale up or down based on CPU/RAM thresholds.", { projectId: z.string(), maxReplicas: z.number() }, async ({ projectId, maxReplicas }) => {
+server.tool("configure_autoscaling", "Define rules to scale up or down based on CPU/RAM thresholds.", { projectId: z.string(), maxReplicas: z.number() }, async ({ projectId, maxReplicas }) => {
    autoScalingConfigs[projectId] = maxReplicas;
    saveToCloudDB();
    return { content: [{ type: "text", text: `Configured autoscaling in project ${projectId} up to ${maxReplicas} replicas` }] };
 });
 
-mcpServer.tool("clear_cache", "Purge edge caches, API gateway caches, or Redis-layer buffers.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("clear_cache", "Purge edge caches, API gateway caches, or Redis-layer buffers.", { projectId: z.string() }, async ({ projectId }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    // Purge in-memory caches: trim old build logs on non-active deployments to free memory
@@ -3638,7 +3639,7 @@ mcpServer.tool("clear_cache", "Purge edge caches, API gateway caches, or Redis-l
 });
 
 // Team & Workspace Management
-mcpServer.tool("invite_team_member", "Send an invitation email to join the workspace or organization.", { workspaceId: z.string(), email: z.string() }, async ({ workspaceId, email }) => {
+server.tool("invite_team_member", "Send an invitation email to join the workspace or organization.", { workspaceId: z.string(), email: z.string() }, async ({ workspaceId, email }) => {
    const ws = workspaces.find(w => w.id === workspaceId);
    if (ws && !ws.members.find(m => m.email === email)) {
        ws.members.push({ email, role: "Viewer" as any });
@@ -3647,7 +3648,7 @@ mcpServer.tool("invite_team_member", "Send an invitation email to join the works
    return { content: [{ type: "text", text: `Invited ${email} to workspace ${workspaceId}` }] };
 });
 
-mcpServer.tool("update_member_role", "Adjust RBAC permissions.", { workspaceId: z.string(), email: z.string(), role: z.string() }, async ({ workspaceId, email, role }) => {
+server.tool("update_member_role", "Adjust RBAC permissions.", { workspaceId: z.string(), email: z.string(), role: z.string() }, async ({ workspaceId, email, role }) => {
    const ws = workspaces.find(w => w.id === workspaceId);
    if (ws) {
        const member = ws.members.find(m => m.email === email);
@@ -3659,13 +3660,13 @@ mcpServer.tool("update_member_role", "Adjust RBAC permissions.", { workspaceId: 
    return { content: [{ type: "text", text: `Updated ${email} to role ${role} in workspace ${workspaceId}` }] };
 });
 
-mcpServer.tool("list_team_members", "Audit who currently has access to the control plane.", { workspaceId: z.string() }, async ({ workspaceId }) => {
+server.tool("list_team_members", "Audit who currently has access to the control plane.", { workspaceId: z.string() }, async ({ workspaceId }) => {
    const ws = workspaces.find(w => w.id === workspaceId);
    return { content: [{ type: "text", text: JSON.stringify(ws ? ws.members : [], null, 2) }] };
 });
 
 // Disaster Recovery & Rollbacks
-mcpServer.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit — really re-points production traffic on Vercel when the deployments are real.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+server.tool("rollback_deployment", "Instantly revert a live environment to the previous stable release commit — really re-points production traffic on Vercel when the deployments are real.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
@@ -3697,7 +3698,7 @@ mcpServer.tool("rollback_deployment", "Instantly revert a live environment to th
    return { content: [{ type: "text", text: `Success: Instantly reverted environment "${environment}" for project "${proj.name}" to the previous stable release commit (${nextStableDep.commitHash}) "${nextStableDep.commitMessage}". Switched active deployment ID from ${currentActiveId} to ${nextStableDep.id}.` }] };
 });
 
-mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a specific URL or endpoint to verify an environment is responding post-deployment.", { url: z.string() }, async ({ url }) => {
+server.tool("run_health_check", "Trigger a quick ping/status check on a specific URL or endpoint to verify an environment is responding post-deployment.", { url: z.string() }, async ({ url }) => {
    const start = Date.now();
    try {
       const controller = new AbortController();
@@ -3724,7 +3725,7 @@ mcpServer.tool("run_health_check", "Trigger a quick ping/status check on a speci
    }
 });
 
-mcpServer.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight — really cancels the build on Vercel when the deployment is real.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
+server.tool("abort_deployment", "Stop a currently running build or deployment sequence mid-flight — really cancels the build on Vercel when the deployment is real.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
    const dep = deployments.find(d => d.id === deploymentId && d.projectId === projectId);
    if (!dep) {
       return { content: [{ type: "text", text: `Error: Deployment ${deploymentId} for project ${projectId} not found.` }] };
@@ -3749,7 +3750,7 @@ mcpServer.tool("abort_deployment", "Stop a currently running build or deployment
 });
 
 // Infrastructure & Configuration
-mcpServer.tool("compare_environments", "Compare configuration variables and deployed versions between two different environments (e.g., Staging vs. Production) to detect drift.", { projectId: z.string(), envA: z.string(), envB: z.string() }, async ({ projectId, envA, envB }) => {
+server.tool("compare_environments", "Compare configuration variables and deployed versions between two different environments (e.g., Staging vs. Production) to detect drift.", { projectId: z.string(), envA: z.string(), envB: z.string() }, async ({ projectId, envA, envB }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
@@ -3769,7 +3770,7 @@ ${variables.length ? variables.map(v => `| \`${v.key}\` | \`${v.value}\` |`).joi
    return { content: [{ type: "text", text: md }] };
 });
 
-mcpServer.tool("generate_deployment_report", "Compile a markdown summary of all changes, performance changes, and security audits since the last production release.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("generate_deployment_report", "Compile a markdown summary of all changes, performance changes, and security audits since the last production release.", { projectId: z.string() }, async ({ projectId }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    const projDeps = deployments.filter(d => d.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -3819,7 +3820,7 @@ mcpServer.tool("generate_deployment_report", "Compile a markdown summary of all 
 });
 
 // Workspace & Environment Maintenance
-mcpServer.tool("archive_stale_projects", "Move inactive repositories or development branches into a read-only archive to clean up workspace clutter.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("archive_stale_projects", "Move inactive repositories or development branches into a read-only archive to clean up workspace clutter.", { projectId: z.string() }, async ({ projectId }) => {
    const proj = projects.find(p => p.id === projectId);
    if (!proj) {
       return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
@@ -3829,7 +3830,7 @@ mcpServer.tool("archive_stale_projects", "Move inactive repositories or developm
    return { content: [{ type: "text", text: `Success: Successfully moved inactive repository "${proj.name}" into a read-only archive to clean up workspace clutter.` }] };
 });
 
-mcpServer.tool("clear_environment_resources", "De-provision all active sub-services (like databases, gateways, and storage buckets) for a specific environment prior to its deletion.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+server.tool("clear_environment_resources", "De-provision all active sub-services (like databases, gateways, and storage buckets) for a specific environment prior to its deletion.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    const removed: string[] = [];
@@ -3860,7 +3861,7 @@ mcpServer.tool("clear_environment_resources", "De-provision all active sub-servi
 });
 
 // Added missing tools
-mcpServer.tool("run_local_lint", "Run static analysis (e.g., ESLint, Ruff) over the workspace before pushing.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("run_local_lint", "Run static analysis (e.g., ESLint, Ruff) over the workspace before pushing.", { projectId: z.string() }, async ({ projectId }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    try {
@@ -3886,7 +3887,7 @@ mcpServer.tool("run_local_lint", "Run static analysis (e.g., ESLint, Ruff) over 
    }
 });
 
-mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests against newly built preview hashes.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests against newly built preview hashes.", { projectId: z.string() }, async ({ projectId }) => {
    const prj = projects.find(p => p.id === projectId);
    if (!prj) return { content: [{ type: "text", text: `Project ${projectId} not found.` }] };
    const activeDep = deployments.find(d => d.id === prj.activeDeploymentId) || deployments.filter(d => d.projectId === projectId && d.status === "ready")[0];
@@ -3915,11 +3916,11 @@ mcpServer.tool("run_e2e_tests", "Trigger automated Playwright or Cypress tests a
    return { content: [{ type: "text", text: `E2E smoke tests for project "${prj.name}": ${passed}/${results.length} passed\n${results.join("\n")}` }] };
 });
 
-mcpServer.tool("list_environments", "Get a full inventory of available environments (e.g., Development, Staging, Production) for a specific app.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_environments", "Get a full inventory of available environments (e.g., Development, Staging, Production) for a specific app.", { projectId: z.string() }, async ({ projectId }) => {
     return { content: [{ type: "text", text: JSON.stringify(environments[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("terminate_environment", "Cleanly destroy temporary environments spun up for pull requests.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
+server.tool("terminate_environment", "Cleanly destroy temporary environments spun up for pull requests.", { projectId: z.string(), environment: z.string() }, async ({ projectId, environment }) => {
     if (environments[projectId]) {
         environments[projectId] = environments[projectId].filter(e => e !== environment);
         saveToCloudDB();
@@ -3927,7 +3928,7 @@ mcpServer.tool("terminate_environment", "Cleanly destroy temporary environments 
     return { content: [{ type: "text", text: `Terminated environment ${environment} for project ${projectId}.` }] };
 });
 
-mcpServer.tool("list_ssl_certificates", "Fetch REAL domain verification/TLS status from Vercel for a project's attached domains (Vercel auto-issues and renews Let's Encrypt certs for any verified domain).", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_ssl_certificates", "Fetch REAL domain verification/TLS status from Vercel for a project's attached domains (Vercel auto-issues and renews Let's Encrypt certs for any verified domain).", { projectId: z.string() }, async ({ projectId }) => {
     const prj = projects.find(p => p.id === projectId);
     if (prj?.vercelProjectId && VERCEL_API_TOKEN) {
       const res = await vortexVercelFetch(`/v9/projects/${prj.vercelProjectId}/domains`);
@@ -3944,18 +3945,18 @@ mcpServer.tool("list_ssl_certificates", "Fetch REAL domain verification/TLS stat
     return { content: [{ type: "text", text: JSON.stringify(sslCertificates[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("provision_ssl_certificate", "Auto-generate and validate new Let's Encrypt certificates for a custom domain.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
+server.tool("provision_ssl_certificate", "Auto-generate and validate new Let's Encrypt certificates for a custom domain.", { projectId: z.string(), domain: z.string() }, async ({ projectId, domain }) => {
     if (!sslCertificates[projectId]) sslCertificates[projectId] = [];
     sslCertificates[projectId].push({ domain, status: "provisioning", expiresAt: new Date(Date.now() + 90*24*60*60*1000).toISOString() });
     saveToCloudDB();
     return { content: [{ type: "text", text: `Provisioned SSL certificate for ${domain}.` }] };
 });
 
-mcpServer.tool("list_audit_logs", "View exact chronological logs of all panel and server operations for regulatory compliance.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("list_audit_logs", "View exact chronological logs of all panel and server operations for regulatory compliance.", { projectId: z.string() }, async ({ projectId }) => {
     return { content: [{ type: "text", text: JSON.stringify(auditTrails[projectId] || [], null, 2) }] };
 });
 
-mcpServer.tool("rotate_project_secrets", "Force a key rotation for all environment variables associated with a project.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("rotate_project_secrets", "Force a key rotation for all environment variables associated with a project.", { projectId: z.string() }, async ({ projectId }) => {
     const evs = envVars[projectId] || [];
     if (evs.length === 0) return { content: [{ type: "text", text: `No environment variables found for project ${projectId}.` }] };
     const rotated: string[] = [];
@@ -3969,7 +3970,7 @@ mcpServer.tool("rotate_project_secrets", "Force a key rotation for all environme
     return { content: [{ type: "text", text: `Rotated ${rotated.length} secret(s) for project ${projectId}: ${rotated.join(", ")}. New randomized values saved and persisted.` }] };
 });
 
-mcpServer.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audit, pip check) for known security flaws in dependencies.", { projectId: z.string() }, async ({ projectId }) => {
+server.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audit, pip check) for known security flaws in dependencies.", { projectId: z.string() }, async ({ projectId }) => {
     try {
         const { execSync } = await import("child_process");
         let auditJson = "";
@@ -3998,7 +3999,7 @@ mcpServer.tool("check_dependency_vulnerabilities", "Run an audit (e.g., npm audi
     }
 });
 
-mcpServer.tool("tail_crash_dump", "Download memory dumps or core traces when serverless functions fail.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
+server.tool("tail_crash_dump", "Download memory dumps or core traces when serverless functions fail.", { projectId: z.string(), deploymentId: z.string() }, async ({ projectId, deploymentId }) => {
     const dep = deployments.find(d => d.id === deploymentId && d.projectId === projectId)
                 || deployments.find(d => d.id === deploymentId)
                 || deployments.filter(d => d.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -4007,7 +4008,7 @@ mcpServer.tool("tail_crash_dump", "Download memory dumps or core traces when ser
     return { content: [{ type: "text", text: `Build logs for deployment ${dep.id} (status: ${dep.status}, created: ${dep.createdAt}):\n\n${logs}` }] };
 });
 
-mcpServer.tool("get_live_deployment_url", "Return the REAL live, active URL for a deployed project (its current production Vercel deployment).", { projectId: z.string(), branch: z.string().optional() }, async ({ projectId, branch }) => {
+server.tool("get_live_deployment_url", "Return the REAL live, active URL for a deployed project (its current production Vercel deployment).", { projectId: z.string(), branch: z.string().optional() }, async ({ projectId, branch }) => {
     const prj = projects.find(p => p.id === projectId);
     if (!prj) return { content: [{ type: "text", text: `Error: Project ${projectId} not found.` }] };
     const activeDep = deployments.find(d => d.id === prj.activeDeploymentId) || deployments.find(d => d.projectId === projectId && d.status === "ready");
@@ -4017,7 +4018,7 @@ mcpServer.tool("get_live_deployment_url", "Return the REAL live, active URL for 
     return { content: [{ type: "text", text: `Error: No real live deployment yet for project ${projectId} — call deploy_project first.` }] };
 });
 
-mcpServer.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio — uses your connected Jira account.", { issueKey: z.string(), comment: z.string().optional() }, async ({ issueKey, comment }) => {
+server.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio — uses your connected Jira account.", { issueKey: z.string(), comment: z.string().optional() }, async ({ issueKey, comment }) => {
     if (!COMPOSIO_API_KEY) return { content: [{ type: "text", text: "Composio not configured. Set COMPOSIO_API_KEY to enable Jira integration." }] };
     try {
         // Get issue details
@@ -4043,7 +4044,7 @@ mcpServer.tool("sync_jira_issue", "Fetch or update a Jira issue via Composio —
     }
 });
 
-mcpServer.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Composio — uses your connected Linear account.", { ticketId: z.string(), comment: z.string().optional() }, async ({ ticketId, comment }) => {
+server.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Composio — uses your connected Linear account.", { ticketId: z.string(), comment: z.string().optional() }, async ({ ticketId, comment }) => {
     if (!COMPOSIO_API_KEY) return { content: [{ type: "text", text: "Composio not configured. Set COMPOSIO_API_KEY to enable Linear integration." }] };
     try {
         const getRes = await vortexComposioFetch("/actions/LINEAR_GET_ISSUE/execute", {
@@ -4068,7 +4069,7 @@ mcpServer.tool("sync_linear_ticket", "Fetch or update a Linear ticket via Compos
     }
 });
 
-mcpServer.tool("create_deployment_notification", "Post deployment notifications to Slack via Composio — uses your connected Slack account.", { projectId: z.string(), message: z.string(), channel: z.string().optional() }, async ({ projectId, message, channel }) => {
+server.tool("create_deployment_notification", "Post deployment notifications to Slack via Composio — uses your connected Slack account.", { projectId: z.string(), message: z.string(), channel: z.string().optional() }, async ({ projectId, message, channel }) => {
     logMcpAction(projectId, `Deployment notification: ${message}`);
     const prj = projects.find(p => p.id === projectId);
     const text = `*[Monico-labs / ${prj?.name || projectId}]* ${message}`;
@@ -4119,7 +4120,7 @@ const PLATFORM_SIGNUP_URLS: Record<string, string> = {
   azure:       "https://signup.azure.com",
 };
 
-mcpServer.tool(
+server.tool(
   "create_platform_account",
   "Creates a REAL new account on any platform using AI-driven headless browser automation. Gemini vision reads each page, fills forms, and handles CAPTCHAs. If it gets stuck, it analyzes the page HTML to build a site-specific playbook and saves it so future runs on the same site work perfectly.",
   {
@@ -4447,7 +4448,7 @@ Return ONLY the JSON array, no markdown:
 // Powered by Composio connected accounts
 // ============================================================
 
-mcpServer.tool("create_github_repository", "Create a new GitHub repository via Composio connected GitHub account.", {
+server.tool("create_github_repository", "Create a new GitHub repository via Composio connected GitHub account.", {
   name: z.string(),
   description: z.string().optional(),
   isPrivate: z.boolean().optional(),
@@ -4473,7 +4474,7 @@ ${isPrivate ? "Visibility: Private" : "Visibility: Public"}` }] };
   }
 });
 
-mcpServer.tool("create_github_issue", "Create a GitHub issue in a repository via Composio.", {
+server.tool("create_github_issue", "Create a GitHub issue in a repository via Composio.", {
   owner: z.string(),
   repo: z.string(),
   title: z.string(),
@@ -4495,7 +4496,7 @@ URL: ${url || `https://github.com/${owner}/${repo}/issues`}` }] };
   }
 });
 
-mcpServer.tool("send_slack_message", "Send a Slack message to a channel via Composio connected Slack account.", {
+server.tool("send_slack_message", "Send a Slack message to a channel via Composio connected Slack account.", {
   channel: z.string(),
   message: z.string(),
   projectId: z.string().optional()
@@ -4514,7 +4515,7 @@ mcpServer.tool("send_slack_message", "Send a Slack message to a channel via Comp
   }
 });
 
-mcpServer.tool("send_email", "Send an email via Composio connected Gmail account.", {
+server.tool("send_email", "Send an email via Composio connected Gmail account.", {
   to: z.string(),
   subject: z.string(),
   body: z.string(),
@@ -4534,7 +4535,7 @@ mcpServer.tool("send_email", "Send an email via Composio connected Gmail account
   }
 });
 
-mcpServer.tool("create_notion_page", "Create a new Notion page via Composio connected Notion account.", {
+server.tool("create_notion_page", "Create a new Notion page via Composio connected Notion account.", {
   title: z.string(),
   content: z.string().optional(),
   parentPageId: z.string().optional(),
@@ -4556,7 +4557,7 @@ URL: ${url}` : ""}` }] };
   }
 });
 
-mcpServer.tool("deploy_to_railway", "Create and deploy a project on Railway via Composio.", {
+server.tool("deploy_to_railway", "Create and deploy a project on Railway via Composio.", {
   projectName: z.string(),
   environmentName: z.string().optional(),
   projectId: z.string().optional()
@@ -4578,7 +4579,7 @@ URL: ${proj?.url || "Check Railway dashboard"}` }] };
   }
 });
 
-mcpServer.tool("deploy_to_render", "Create a new Render web service via Composio.", {
+server.tool("deploy_to_render", "Create a new Render web service via Composio.", {
   serviceName: z.string(),
   repoUrl: z.string().optional(),
   projectId: z.string().optional()
@@ -4602,7 +4603,7 @@ URL: ${svc?.serviceDetails?.url || "Check Render dashboard"}` }] };
   }
 });
 
-mcpServer.tool("create_supabase_project", "Create a new Supabase project via Composio.", {
+server.tool("create_supabase_project", "Create a new Supabase project via Composio.", {
   projectName: z.string(),
   organizationId: z.string().optional(),
   dbPassword: z.string().optional(),
@@ -4624,7 +4625,7 @@ Endpoint: ${proj?.endpoint ? `https://${proj.endpoint}` : "Check Supabase dashbo
   }
 });
 
-mcpServer.tool("create_vercel_project", "Create a new Vercel project and link it via Composio.", {
+server.tool("create_vercel_project", "Create a new Vercel project and link it via Composio.", {
   projectName: z.string(),
   framework: z.string().optional(),
   repoUrl: z.string().optional(),
@@ -4650,7 +4651,7 @@ Dashboard: https://vercel.com/dashboard` }] };
   }
 });
 
-mcpServer.tool("upload_to_google_drive", "Upload a file or create a document in Google Drive via Composio.", {
+server.tool("upload_to_google_drive", "Upload a file or create a document in Google Drive via Composio.", {
   fileName: z.string(),
   content: z.string(),
   projectId: z.string().optional()
@@ -4673,7 +4674,7 @@ URL: ${file?.webViewLink || "Check Google Drive"}` }] };
 });
 
 
-mcpServer.tool(
+server.tool(
   "list_browser_playbooks",
   "List all saved site playbooks that the AI has learned from previous account creation runs. Shows success/failure counts.",
   { platform: z.string().optional() },
@@ -4691,7 +4692,7 @@ ${rows}` }] };
   }
 );
 
-mcpServer.tool(
+server.tool(
   "delete_browser_playbook",
   "Delete a saved browser playbook so the AI relearns that site from scratch next time.",
   { platform: z.string() },
@@ -4704,7 +4705,7 @@ mcpServer.tool(
   }
 );
 
-mcpServer.tool(
+server.tool(
   "update_browser_playbook",
   "Manually update or fix a saved playbook for a platform. Pass the steps as a JSON array string.",
   { platform: z.string(), steps: z.string(), notes: z.string().optional() },
@@ -4729,7 +4730,16 @@ mcpServer.tool(
   }
 );
 
-let transports = new Map<string, SSEServerTransport>();
+  return server;
+}
+
+// One McpServer per SSE connection: the MCP SDK requires a separate Protocol
+// instance per transport (a second connect() on one instance throws). The
+// shared instance below serves STDIO mode and the local-tool introspection
+// in the tunnel handler.
+const mcpServer = createMcpServer();
+
+const transports = new Map<string, { transport: SSEServerTransport; server: McpServer }>();
 
 // --- COMPACT & ROBUST RATE LIMITER (NO EXTERNAL STORE NEEDED) ---
 const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -4810,41 +4820,46 @@ app.get(["/api/monico-labs.mcp/sse", "/api/mcp/sse"], mcpRateLimitMiddleware, mc
   const isMcpPath = req.path.includes("/api/mcp/sse");
   const endpointPath = isMcpPath ? "/api/mcp" : "/api/monico-labs.mcp";
   const transport = new SSEServerTransport(endpointPath, res);
-  // The MCP SDK usually doesn't have a public sessionId property on SSEServerTransport constructor
-  // We need to generate or identify the sessionId correctly.
-  // For now, let's look at the transport object structure or generate one.
-  const sessionId = (transport as any).sessionId || `session_${Date.now()}`;
-  
-  await mcpServer.connect(transport);
-  
-  transports.set(sessionId, transport);
-  
-  res.on("close", () => {
+  // The SDK assigns sessionId in the constructor and advertises this exact
+  // value in the `endpoint` event — use it verbatim as the map key. A
+  // generated fallback key here would never match the advertised sessionId
+  // and every POST would 404.
+  const sessionId = transport.sessionId;
+  // Per-connection server: the MCP SDK throws "Already connected" if one
+  // Protocol instance is connected to two transports.
+  const server = createMcpServer();
+  // Register BEFORE connect(): connect() writes the endpoint event, and a
+  // fast client can POST before an awaited connect() resolves.
+  transports.set(sessionId, { transport, server });
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
     transports.delete(sessionId);
-    transport.close();
-  });
+    try { server.close(); } catch { /* already closed */ }
+  };
+  res.on("close", cleanup);
+  try {
+    await server.connect(transport);
+  } catch (err) {
+    console.error("[MCP-SSE] connect failed:", err);
+    cleanup();
+    if (!res.headersSent) res.status(500).send("MCP transport setup failed");
+    else res.end();
+  }
 });
 
 app.post(["/api/monico-labs.mcp", "/api/mcp"], mcpRateLimitMiddleware, mcpAuthMiddleware, async (req, res) => {
   const sessionId = req.query.sessionId as string;
-  let transport = transports.get(sessionId);
-  if (!transport && transports.size > 0) {
-    // Robust fallback: If the requested sessionId isn't found (due to quick client reconnects),
-    // map to the latest active transport rather than immediately throwing a 404.
-    const activeIds = Array.from(transports.keys());
-    const fallbackId = activeIds[activeIds.length - 1];
-    transport = transports.get(fallbackId);
-    console.log(`[MCP-ROUTING] Session '${sessionId}' mismatch. Falling back to active session '${fallbackId}'`);
-  }
-  
-  if (!transport) {
+  const entry = sessionId ? transports.get(sessionId) : undefined;
+  if (!entry) {
     return res.status(404).send("Session not found or MCP SSE connection has not been established yet. Please connect to /api/mcp/sse first.");
   }
   try {
-    await transport.handlePostMessage(req, res, req.body);
+    await entry.transport.handlePostMessage(req, res, req.body);
   } catch (error) {
     console.error("Error handling MCP POST message:", error);
-    res.status(500).send("Internal Server Error");
+    if (!res.headersSent) res.status(500).send("Internal Server Error");
   }
 });
 

@@ -1,5 +1,8 @@
 {
   "author": "",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@helia/unixfs": "^8.0.9",
