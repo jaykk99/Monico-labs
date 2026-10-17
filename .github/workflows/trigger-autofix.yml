@@ -13,4 +13,5 @@ jobs:
           curl -sf -X POST https://error-inbox.vercel.app/api/autofix/analyze \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -d '{"repos":["monico-labs"]}'
+            -d '{"repos":["monico-labs"]}' \
+            || echo "autofix trigger skipped: error-inbox unreachable"
