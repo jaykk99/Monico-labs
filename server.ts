@@ -978,8 +978,15 @@ app.get("/api/projects/:projectId/audit-logs", (req, res) => {
 });
 
 app.get("/api/projects", (req, res) => {
-  console.log(`[GET /api/projects] Returning ${projects.length} projects`);
-  res.json(projects);
+  const q = String(req.query.q ?? "").trim().toLowerCase();
+  const list = q
+    ? // Search by project name or id (case-insensitive substring).
+      projects.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+      )
+    : projects;
+  console.log(`[GET /api/projects] Returning ${list.length} projects${q ? ` (q="${q}")` : ""}`);
+  res.json(list);
 });
 
 app.post("/api/projects", (req, res) => {
@@ -1144,7 +1151,10 @@ app.get("/api/projects/:projectId/deployments", (req, res) => {
   const prjDeps = deployments.filter((d) => d.projectId === req.params.projectId);
   // Sort descending by date
   prjDeps.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  res.json(prjDeps);
+  // Paginate (defaults keep the historic all-at-once behavior).
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 1000));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+  res.json(prjDeps.slice(offset, offset + limit));
 });
 
 // GET raw deployment preview HTML payload
@@ -1468,6 +1478,66 @@ app.post("/api/projects/:projectId/deployments/:deploymentId/publish", async (re
   dep.ipfsPublishedAt = new Date().toISOString();
   saveToCloudDB();
   res.json({ cid: r.cid, urls: r.urls, peerId: r.peerId, note: "Public via IPFS gateways. This device is the provider while the app is open; gateways were asked to cache a copy so the link survives this device going offline. No permanent guarantee without paid pinning." });
+});
+
+// Build-log access for a deployment.
+// GET .../logs?cursor=N returns only lines added after cursor N (polling).
+// GET .../logs/stream opens an SSE stream that emits "log" events as lines
+// are appended and a "done" event once the deployment reaches a terminal
+// status (ready/error/failed) with all lines drained.
+function isTerminalDepStatus(status: string): boolean {
+  return status === "ready" || status === "error" || status === "failed";
+}
+
+app.get("/api/projects/:projectId/deployments/:deploymentId/logs", (req, res) => {
+  const { projectId, deploymentId } = req.params;
+  const dep = deployments.find((d) => d.id === deploymentId && d.projectId === projectId);
+  if (!dep) return res.status(404).json({ error: "Deployment not found." });
+  const cursor = Math.max(0, Number(req.query.cursor) || 0);
+  const lines = (dep.buildLogs || [])
+    .slice(cursor)
+    .map((line, i) => ({ index: cursor + i, line }));
+  res.json({ lines, cursor: cursor + lines.length, status: dep.status, done: isTerminalDepStatus(dep.status) });
+});
+
+app.get("/api/projects/:projectId/deployments/:deploymentId/logs/stream", (req, res) => {
+  const { projectId, deploymentId } = req.params;
+  const dep = deployments.find((d) => d.id === deploymentId && d.projectId === projectId);
+  if (!dep) return res.status(404).json({ error: "Deployment not found." });
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders();
+
+  let sent = Math.max(0, Number(req.query.cursor) || 0);
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(timer);
+    try {
+      res.end();
+    } catch {
+      /* client already gone */
+    }
+  };
+  const push = () => {
+    if (closed) return;
+    const logs = dep.buildLogs || [];
+    while (sent < logs.length) {
+      res.write(`event: log\ndata: ${JSON.stringify({ index: sent, line: logs[sent] })}\n\n`);
+      sent++;
+    }
+    res.write(`: heartbeat\n\n`);
+    if (isTerminalDepStatus(dep.status) && sent >= logs.length) {
+      res.write(`event: done\ndata: ${JSON.stringify({ status: dep.status })}\n\n`);
+      close();
+    }
+  };
+  const timer = setInterval(push, 1000);
+  req.on("close", close);
+  push();
 });
 
 // Serverless function routers

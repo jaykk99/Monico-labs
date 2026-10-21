@@ -24,6 +24,8 @@ import {
   Sparkles,
   Layers,
   Send,
+  Search,
+  X,
 } from "lucide-react";
 import { DEFAULT_SITE_TEMPLATE, emptyState, newDeployment, newProject } from "../lib/model";
 import type { AppState, Deployment, Project } from "../lib/model";
@@ -273,18 +275,30 @@ function DeploymentCard({
   dep,
   isActive,
   publishing,
+  selected,
+  onToggleSelect,
   onPublish,
   onDelete,
 }: {
   dep: Deployment;
   isActive: boolean;
   publishing: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   onPublish: (dep: Deployment) => void;
   onDelete: (dep: Deployment) => void;
 }) {
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur">
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(dep.id)}
+          title="Select for bulk actions"
+          aria-label={`Select deployment ${shortId(dep.id)}`}
+          className="h-4 w-4 shrink-0 cursor-pointer rounded accent-indigo-500"
+        />
         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${statusStyles[dep.status]}`}>
           {dep.status}
         </span>
@@ -318,6 +332,11 @@ function DeploymentCard({
             </span>
           </div>
           <code className="block break-all font-mono text-xs text-sky-300/90">{dep.ipfsCid}</code>
+          {dep.ipfsPublishedAt && (
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Published {timeAgo(dep.ipfsPublishedAt)} · {(dep.ipfsUrls ?? []).length} gateway link{(dep.ipfsUrls ?? []).length === 1 ? '' : 's'}
+            </p>
+          )}
           <div className="mt-2 flex flex-col gap-1">
             {(dep.ipfsUrls ?? []).slice(0, 2).map((u) => (
               <a key={u} href={u} target="_blank" rel="noreferrer" className="truncate text-xs text-sky-400/80 underline decoration-sky-400/30 hover:text-sky-300">
@@ -375,6 +394,10 @@ export default function SitesPanel() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
+  // Dashboard tools: project search + bulk deployment selection
+  const [projectQuery, setProjectQuery] = useState("");
+  const [selectedDepIds, setSelectedDepIds] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,6 +430,33 @@ export default function SitesPanel() {
     });
   };
 
+  // Functional update of deployments only — safe for sequential bulk ops
+  // where the plain `state` closure would go stale between awaits.
+  const applyDeployments = (fn: (deps: Deployment[]) => Deployment[]): void => {
+    setState((prev) => {
+      const next = { ...prev, deployments: fn(prev.deployments) };
+      store.save(next).catch((err) => {
+        setBootError(`Failed to save: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      return next;
+    });
+  };
+
+  const filteredProjects = useMemo(() => {
+    const q = projectQuery.trim().toLowerCase();
+    if (!q) return state.projects;
+    return state.projects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [state.projects, projectQuery]);
+
+  const toggleDepSelect = (id: string): void => {
+    setSelectedDepIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const selectProject = (id: string): void => {
+    setSelectedProjectId(id);
+    setSelectedDepIds([]);
+  };
+
   const selectedProject: Project | null = useMemo(
     () => state.projects.find((p) => p.id === selectedProjectId) ?? null,
     [state.projects, selectedProjectId]
@@ -430,6 +480,7 @@ export default function SitesPanel() {
     persist({ projects: [project, ...state.projects], deployments: state.deployments });
     setSelectedProjectId(project.id);
     setNewName("");
+    setProjectQuery("");
   };
 
   const deleteProject = (project: Project): void => {
@@ -478,23 +529,27 @@ export default function SitesPanel() {
     });
   };
 
-  const publish = async (dep: Deployment): Promise<void> => {
+  // Publish one deployment to IPFS. Throws on failure; uses a functional
+  // update so sequential bulk publishes never clobber each other.
+  const publishOne = async (dep: Deployment): Promise<void> => {
     if (!dep.deployedHtml) {
-      setPublishError("This deployment has no HTML payload — only static HTML deployments can be published.");
-      return;
+      throw new Error("This deployment has no HTML payload — only static HTML deployments can be published.");
     }
+    const result = await publishHtmlToIpfs(dep.deployedHtml);
+    applyDeployments((deps) =>
+      deps.map((d) =>
+        d.id === dep.id
+          ? { ...d, ipfsCid: result.cid, ipfsUrls: result.urls, ipfsPublishedAt: new Date().toISOString() }
+          : d
+      )
+    );
+  };
+
+  const publish = async (dep: Deployment): Promise<void> => {
     setPublishingId(dep.id);
     setPublishError(null);
     try {
-      const result = await publishHtmlToIpfs(dep.deployedHtml);
-      persist({
-        ...state,
-        deployments: state.deployments.map((d) =>
-          d.id === dep.id
-            ? { ...d, ipfsCid: result.cid, ipfsUrls: result.urls, ipfsPublishedAt: new Date().toISOString() }
-            : d
-        ),
-      });
+      await publishOne(dep);
     } catch (err) {
       setPublishError(
         `IPFS publish failed: ${err instanceof Error ? err.message : String(err)}. ` +
@@ -502,6 +557,63 @@ export default function SitesPanel() {
       );
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  // ---------- bulk deployment operations ----------
+  const selectedDeps = useMemo(
+    () => projectDeployments.filter((d) => selectedDepIds.includes(d.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectDeployments, selectedDepIds]
+  );
+
+  const bulkDelete = (): void => {
+    const n = selectedDepIds.length;
+    if (n === 0) return;
+    if (!window.confirm(`Delete ${n} selected deployment${n === 1 ? "" : "s"}? This can't be undone.`)) return;
+    const ids = new Set(selectedDepIds);
+    const deployments = state.deployments.filter((d) => !ids.has(d.id));
+    const projects = state.projects.map((p) =>
+      ids.has(p.activeDeploymentId ?? "") ? { ...p, activeDeploymentId: undefined } : p
+    );
+    persist({ projects, deployments });
+    setSelectedDepIds([]);
+  };
+
+  const bulkPublish = async (): Promise<void> => {
+    const targets = selectedDeps.filter((d) => d.deployedHtml && !d.ipfsCid);
+    if (targets.length === 0) {
+      setPublishError("Nothing to publish: select deployments that are not already on IPFS.");
+      return;
+    }
+    setBulkBusy(true);
+    setPublishError(null);
+    let okCount = 0;
+    const failures: string[] = [];
+    for (const dep of targets) {
+      setPublishingId(dep.id);
+      try {
+        await publishOne(dep);
+        okCount++;
+      } catch (err) {
+        failures.push(`${shortId(dep.id)}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    setPublishingId(null);
+    setBulkBusy(false);
+    if (failures.length > 0) {
+      setPublishError(
+        `Published ${okCount} of ${targets.length}. ${failures.length} failed: ${failures.slice(0, 3).join(" | ")}` +
+          (failures.length > 3 ? ` (+${failures.length - 3} more)` : "")
+      );
+    }
+  };
+
+  const toggleSelectAllDeps = (): void => {
+    if (selectedDepIds.length === projectDeployments.length) {
+      setSelectedDepIds([]);
+    } else {
+      setSelectedDepIds(projectDeployments.map((d) => d.id));
     }
   };
 
@@ -607,6 +719,25 @@ export default function SitesPanel() {
           {/* projects */}
           <section className="h-fit rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur lg:sticky lg:top-6">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Projects</h2>
+            <div className="relative mb-3">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                value={projectQuery}
+                onChange={(e) => setProjectQuery(e.target.value)}
+                placeholder="Search projects…"
+                aria-label="Search projects"
+                className="w-full rounded-lg border border-white/10 bg-black/40 py-2 pl-9 pr-8 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-400/60"
+              />
+              {projectQuery && (
+                <button
+                  onClick={() => setProjectQuery("")}
+                  title="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-200"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <div className="mb-4 flex gap-2">
               <input
                 value={newName}
@@ -627,20 +758,22 @@ export default function SitesPanel() {
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            {state.projects.length === 0 ? (
+            {filteredProjects.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/15 p-6 text-center">
                 <FileCode2 className="mx-auto mb-2 h-8 w-8 text-slate-600" />
-                <p className="text-sm text-slate-400">No projects yet — create one to get started.</p>
+                <p className="text-sm text-slate-400">
+                  {projectQuery ? `No projects match "${projectQuery}".` : "No projects yet — create one to get started."}
+                </p>
               </div>
             ) : (
               <ul className="flex flex-col gap-2">
-                {state.projects.map((p) => {
+                {filteredProjects.map((p) => {
                   const count = state.deployments.filter((d) => d.projectId === p.id).length;
                   const active = p.id === selectedProjectId;
                   return (
                     <li key={p.id} className="group relative">
                       <button
-                        onClick={() => setSelectedProjectId(p.id)}
+                        onClick={() => selectProject(p.id)}
                         className={`w-full rounded-xl border p-3 text-left transition ${
                           active
                             ? "border-indigo-400/60 bg-indigo-500/10"
@@ -731,18 +864,64 @@ export default function SitesPanel() {
                     <p className="text-slate-400">No deployments yet — write some HTML above and hit Deploy.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-5">
-                    {projectDeployments.map((dep) => (
-                      <DeploymentCard
-                        key={dep.id}
-                        dep={dep}
-                        isActive={selectedProject.activeDeploymentId === dep.id}
-                        publishing={publishingId === dep.id}
-                        onPublish={publish}
-                        onDelete={deleteDeployment}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={selectedDepIds.length === projectDeployments.length && projectDeployments.length > 0}
+                          onChange={toggleSelectAllDeps}
+                          aria-label="Select all deployments"
+                          className="h-4 w-4 cursor-pointer rounded accent-indigo-500"
+                        />
+                        Select all
+                      </label>
+                      {selectedDepIds.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5">
+                          <span className="text-xs font-semibold text-indigo-200">
+                            {selectedDepIds.length} selected
+                          </span>
+                          <button
+                            onClick={bulkPublish}
+                            disabled={bulkBusy}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+                          >
+                            <Send className="h-3.5 w-3.5" /> {bulkBusy ? "Publishing…" : "Publish to IPFS"}
+                          </button>
+                          <button
+                            onClick={bulkDelete}
+                            disabled={bulkBusy}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 px-3 py-1 text-xs text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-60"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                          </button>
+                          <button
+                            onClick={() => setSelectedDepIds([])}
+                            className="rounded-lg px-2 py-1 text-xs text-slate-400 transition hover:text-slate-200"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                      <span className="ml-auto text-xs text-slate-500">
+                        {projectDeployments.length} deployment{projectDeployments.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-5">
+                      {projectDeployments.map((dep) => (
+                        <DeploymentCard
+                          key={dep.id}
+                          dep={dep}
+                          isActive={selectedProject.activeDeploymentId === dep.id}
+                          publishing={publishingId === dep.id}
+                          selected={selectedDepIds.includes(dep.id)}
+                          onToggleSelect={toggleDepSelect}
+                          onPublish={publish}
+                          onDelete={deleteDeployment}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </>
             )}
