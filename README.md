@@ -3,7 +3,6 @@
 > **What it is today:** a self-contained site builder and publisher that runs
 > with **zero backend, zero server, zero keys** — and scales up when you want it to.
 
-🌤 **Live Demo**: https://monico-labs.onrender.com
 
 ## Three targets, one codebase
 
@@ -28,7 +27,6 @@ it cannot run the backend (no Node/Docker/persistent processes there).
 
 # 🌪️ Vortex Cloud Platform & MCP Server (legacy docs below)
 
-🌤 **Live Demo**: https://monico-labs.onrender.com
 
 Vortex is a self-contained, high-performance developer platform, integrated cloud orchestration infrastructure, and native database engine. It contains a fully functional **Model Context Protocol (MCP) Server** running natively on its backend that allows automated AI agents (like Grok, Claude, or Gemini) to programmatically deploy full-stack applications, register custom domains, query databases, audit firewall logs, and scale system resources instantly.
 
