@@ -1248,13 +1248,22 @@ app.get("/p/:slug", (req, res) => {
 // Trigger dynamic deployments (using Gemini option to customize look!)
 app.put("/api/projects/:projectId", (req, res) => {
   const { projectId } = req.params;
-  const { name, framework, branch } = req.body;
+  const { name, framework, branch, repo, activeDeploymentId } = req.body;
   const proj = projects.find((p) => p.id === projectId);
   if (!proj) return res.status(404).json({ error: "Project not found" });
 
   if (name) proj.name = name;
   if (framework) proj.framework = framework;
   if (branch) proj.branch = branch;
+  if (typeof repo === "string" && repo.trim() && repo.length <= 200) proj.repo = repo.trim();
+  // Promote / roll back: only to a ready deployment of this same project.
+  if (activeDeploymentId) {
+    const target = deployments.find((d) => d.id === activeDeploymentId && d.projectId === projectId);
+    if (!target) return res.status(404).json({ error: "Deployment not found for this project." });
+    if (target.status !== "ready") return res.status(400).json({ error: "Only a ready deployment can be promoted." });
+    proj.activeDeploymentId = target.id;
+    logMcpAction(projectId, `Promoted deployment ${target.id} to production`, "Console");
+  }
 
   saveToCloudDB();
   res.json(proj);

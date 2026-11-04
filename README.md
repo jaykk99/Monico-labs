@@ -1,18 +1,34 @@
 # Monico Labs
 
-**Storefront for Monico Labs software** — Monico Agent, ReconAnything, and
-(soon) Wholesale Stack and Code Runner. Black-and-white storefront, crypto
-checkout (BTC / ETH / SOL), one access code that signs buyers into every
-product they own, and an owner console.
+**A self-hosted hosting platform with a full console.** Deploy sites, then
+manage everything around them from one black-and-white dashboard:
 
-- `src/store/` — storefront UI (home, products, checkout, invoice, account, owner at `#/owner`)
-- `catalog/products.json` — products, tiers and prices (one source for UI and backend)
-- `hub-worker/` — Cloudflare Worker + D1 backend: checkout, entitlement ledger,
-  access codes, signed tokens, owner TOTP login. Deploy guide: [`hub-worker/README.md`](hub-worker/README.md)
-- Set `VITE_HUB_URL` to the deployed hub. Without it the store still renders
-  and says checkout is offline.
+| Section | What it does |
+|---|---|
+| Projects | Import a GitHub repo or start from HTML; live previews of every project |
+| Deployments | Deploy, watch build output stream live, promote or roll back, publish to IPFS |
+| Domains | Custom domains routed by Host header, with DNS setup records |
+| Environment | Per-project variables, hidden by default, bulk `.env` paste |
+| Functions | Serverless endpoints with a test runner and invocation log |
+| Database | Per-project SQLite: tables, rows, SQL console |
+| Auth | Users, roles, sign-in providers, session and password rules |
+| API keys | Rate-limited keys for your own apps |
+| Firewall | Security level, SSL mode, WAF rules, real incident log |
+| Analytics | Requests, errors, latency and bandwidth from real traffic |
+| Activity | Audit trail of every change, including AI agents over MCP |
+| Teams / System | Workspace members, live CPU and RAM, integrations, MCP connect |
 
-The original static site lab still ships in the same bundle at `#/lab`.
+**Two modes, one bundle.** Served by the Monico server (desktop app, Docker,
+`npm run dev`) every section is live. On static hosting such as Vercel or
+IPFS, the console runs in browser mode: projects and HTML deployments live in
+IndexedDB and publish to IPFS from the page, and server-only sections say so.
+
+Current limits, stated plainly: server deploys fetch the repo's static
+`index.html` rather than running your build, and functions store code but
+return an echo of the request instead of executing it.
+
+The original single-page site lab is still at `#/lab`. The storefront that
+sells Monico software lives in its own repo, `jaykk99/monico-labs-insta`.
 
 ---
 
