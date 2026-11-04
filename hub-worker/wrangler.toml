@@ -1,0 +1,23 @@
+# Monico Labs hub - Cloudflare Worker + D1 + cron sweep.
+# Secrets never go in this file. Set them with:
+#   wrangler secret put HUB_SIGNING_KEY
+#   wrangler secret put OWNER_TOTP_SECRET
+#   wrangler secret put OWNER_RECOVERY_HASH
+# (values from: node scripts/keygen.mjs)
+# After `wrangler d1 create monico-hub`, paste its database_id below, then:
+#   wrangler d1 execute monico-hub --remote --file migrations/0001_init.sql
+name = "monico-hub"
+compatibility_date = "2026-10-28"
+main = "src/worker.js"
+
+[vars]
+# Comma-separated storefront + product origins allowed to call the API, or *
+ALLOWED_ORIGINS = "*"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "monico-hub"
+database_id = "REPLACE_WITH_D1_DATABASE_ID_FROM_WRANGLER_D1_CREATE"

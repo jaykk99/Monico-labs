@@ -1,5 +1,23 @@
 # Monico Labs
 
+**Storefront for Monico Labs software** — Monico Agent, ReconAnything, and
+(soon) Wholesale Stack and Code Runner. Black-and-white storefront, crypto
+checkout (BTC / ETH / SOL), one access code that signs buyers into every
+product they own, and an owner console.
+
+- `src/store/` — storefront UI (home, products, checkout, invoice, account, owner at `#/owner`)
+- `catalog/products.json` — products, tiers and prices (one source for UI and backend)
+- `hub-worker/` — Cloudflare Worker + D1 backend: checkout, entitlement ledger,
+  access codes, signed tokens, owner TOTP login. Deploy guide: [`hub-worker/README.md`](hub-worker/README.md)
+- Set `VITE_HUB_URL` to the deployed hub. Without it the store still renders
+  and says checkout is offline.
+
+The original static site lab still ships in the same bundle at `#/lab`.
+
+---
+
+## Site lab
+
 > **What it is today:** a self-contained site builder and publisher that runs
 > with **zero backend, zero server, zero keys** — and scales up when you want it to.
 
