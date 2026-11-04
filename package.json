@@ -16,8 +16,8 @@
     "localtunnel": "^2.0.2",
     "lucide-react": "^0.545.0",
     "pg": "^8.22.0",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "zod": "^4.4.3"
   },
   "description": "Monico Labs – Serverless playground and monitoring",
