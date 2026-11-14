@@ -47,7 +47,8 @@ async function waitForHttp(base, timeoutMs = 90000) {
   const start = Date.now();
   for (;;) {
     try {
-      const res = await fetch(`${base}/`, { signal: AbortSignal.timeout(3000) });
+      // /api/health is the readiness signal ("/" needs the built web client).
+      const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(3000) });
       if (res.ok) return;
     } catch {
       // not up yet
